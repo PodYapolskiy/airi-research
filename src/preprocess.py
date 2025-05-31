@@ -1,6 +1,9 @@
 import os
+import warnings
+import requests
 import argparse
 from pathlib import Path
+from rich import print as rprint
 
 import cv2
 import torch
@@ -10,6 +13,10 @@ import pandas as pd
 import moviepy as mp
 from facenet_pytorch import MTCNN
 from emotiefflib.facial_analysis import EmotiEffLibRecognizer
+import transformers
+from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
+
+warnings.filterwarnings("ignore")
 
 
 def parse_arguments():
@@ -77,14 +84,20 @@ def preprocess(
     preprocessed_dir_path: Path,
     mtcnn: MTCNN,
     emoti_eff: EmotiEffLibRecognizer,
+    wav2vec2: Wav2Vec2ForCTC,
+    wav2vec2_processor: Wav2Vec2Processor,
+    device: str = "cpu",
 ):
     for index, row in df.iterrows():
-        print(row["id"], row["q_index"], row["q_type"])
         sample_path = dir_path / f"{row['id']}_{row['q_index']}_{row['q_type']}.mp4"
+        rprint(sample_path)
 
         video = mp.VideoFileClip(sample_path)
-        # audio = video.audio  # .write_audiofile(f"{sample_path.stem}.wav")
+        audio = video.audio
 
+        #########
+        # Video #
+        #########
         cropped_frames: list[np.ndarray] = []
         for t, frame in video.iter_frames(with_times=True):
             cropped_frame: torch.Tensor = mtcnn(frame)
@@ -129,18 +142,62 @@ def preprocess(
 
         # boost performance of conversions list[np.ndarray] -> np.ndarray
         features = np.array(features)
-        features_tensor = torch.tensor(features)
+        video_features = torch.from_numpy(features)
         torch.save(
-            features_tensor, preprocessed_dir_path / f"{sample_path.stem}_video.pt"
+            obj=video_features,
+            f=preprocessed_dir_path / "video" / f"{sample_path.stem}.pt",
         )
         # print(features_tensor.size())  # [frames, features] (i.e [1680, 1280])
 
+        #########
+        # Audio #
+        #########
+        audio_tensor = torch.from_numpy(audio.to_soundarray(fps=audio.fps)).permute(
+            1, 0
+        )
+        signal = audio_tensor.mean(dim=0)  # average by channels
+
+        input_values: torch.Tensor = wav2vec2_processor(
+            signal, sampling_rate=16000, return_tensors="pt"
+        ).input_values
+
+        def hook_fn(module, input, output):
+            global hidden_state
+            hidden_state = output
+
+        layer = wav2vec2.wav2vec2.encoder.layers[-1]
+        hook_handle = layer.register_forward_hook(hook_fn)
+
+        # input_values = input_values.to(device)
+        with torch.no_grad():
+            _ = wav2vec2(input_values, output_hidden_states=True)
+
+        audio_features = hidden_state[-1].squeeze(0)
+        torch.save(
+            obj=audio_features,
+            f=preprocessed_dir_path / "audio" / f"{sample_path.stem}.pt",
+        )
+
+        hook_handle.remove()
+
         video.close()
-        # audio.close()
+        audio.close()
+
+        break
 
 
 def main():
-    mlflow.set_tracking_uri(uri="http://localhost:5000")
+    MLFLOW_URI = "http://localhost:5000"
+
+    try:
+        response = requests.head(MLFLOW_URI)
+        response.raise_for_status()
+    except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError):
+        raise RuntimeError(
+            f"MLflow server is not running at {MLFLOW_URI}. Please start it with `mlflow server`."
+        )
+
+    mlflow.set_tracking_uri(uri=MLFLOW_URI)
     mlflow.set_experiment("Preprocessing")
 
     args = parse_arguments()
@@ -157,9 +214,16 @@ def main():
     PREPROCESSED_VAL_DIR_PATH = DATA_DIR_PATH / args.preprocessed_val_dir
 
     os.makedirs(TRAIN_DIR_PATH, exist_ok=True)
-    os.makedirs(VAL_DIR_PATH, exist_ok=True)
     os.makedirs(PREPROCESSED_TRAIN_DIR_PATH, exist_ok=True)
+    os.makedirs(PREPROCESSED_TRAIN_DIR_PATH / "video", exist_ok=True)
+    os.makedirs(PREPROCESSED_TRAIN_DIR_PATH / "audio", exist_ok=True)
+    os.makedirs(PREPROCESSED_TRAIN_DIR_PATH / "text", exist_ok=True)
+
+    os.makedirs(VAL_DIR_PATH, exist_ok=True)
     os.makedirs(PREPROCESSED_VAL_DIR_PATH, exist_ok=True)
+    os.makedirs(PREPROCESSED_VAL_DIR_PATH / "video", exist_ok=True)
+    os.makedirs(PREPROCESSED_VAL_DIR_PATH / "audio", exist_ok=True)
+    os.makedirs(PREPROCESSED_VAL_DIR_PATH / "text", exist_ok=True)
 
     with mlflow.start_run():
         #############
@@ -189,15 +253,24 @@ def main():
         # Models #
         ##########
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        rprint(f"{device = }")
+
         mtcnn = MTCNN(
             image_size=args.image_size, min_face_size=args.min_face_size, device=device
         )
         emoti_eff = EmotiEffLibRecognizer(
-            model_name="enet_b0_8_best_vgaf", device=device
+            model_name="enet_b0_8_best_vgaf", device=device, engine="torch"
         )
-
         if args.custom_preprocess:
             emoti_eff._preprocess = _preprocess
+
+        model_id = "facebook/wav2vec2-base"
+        transformers.logging.set_verbosity_error()
+        wav2vec2 = Wav2Vec2ForCTC.from_pretrained(
+            model_id, use_safetensors=True
+        )  # .to(device)
+        wav2vec2.eval()
+        wav2vec2_processor = Wav2Vec2Processor.from_pretrained(model_id)
 
         #########
         # Train #
@@ -208,6 +281,9 @@ def main():
             preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
             mtcnn=mtcnn,
             emoti_eff=emoti_eff,
+            wav2vec2=wav2vec2,
+            wav2vec2_processor=wav2vec2_processor,
+            device=device,
         )
 
         ########
@@ -219,6 +295,9 @@ def main():
             preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
             mtcnn=mtcnn,
             emoti_eff=emoti_eff,
+            wav2vec2=wav2vec2,
+            wav2vec2_processor=wav2vec2_processor,
+            device=device,
         )
 
 
