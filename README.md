@@ -4,6 +4,18 @@ https://ieeexplore.ieee.org/document/9649076
 https://ieeexplore.ieee.org/document/9815154
 https://ieeexplore.ieee.org/document/9896386
 
+## Modalities Extraction
+
+For $ \forall $ \*.mp4:
+
+- \*.mp4 (extracted faces without sound)
+- \*.wav
+- \*.txt
+
+```bash
+uv run src/extraction.py
+```
+
 ## Preprocessing
 
 ```bash

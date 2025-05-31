@@ -13,6 +13,7 @@ dependencies = [
     "mlflow>=2.22.0",
     "moviepy>=2.2.1",
     "numpy<2",
+    "openai-whisper>=20240930",
     "opencv-python>=4.11.0.86",
     "pandas>=2.2.3",
     "pillow>=10.2.0",
