@@ -1,4 +1,5 @@
 import cv2
+import mlflow
 import numpy as np
 from pathlib import Path
 from rich import print as rprint
@@ -10,7 +11,7 @@ from jaxtyping import Float
 from facenet_pytorch import MTCNN
 import whisper
 
-from utils import parse_arguments
+from utils import ensure_mlflow, ensure_paths, parse_arguments
 
 
 def extract_video(
@@ -111,8 +112,11 @@ def extract_text(
 
 
 def main():
+    ensure_mlflow()
+    mlflow.set_experiment("Modalities Extraction")
     args = parse_arguments("Modalities extraction.")
 
+    ensure_paths(args.data_dir, args)
     DATA_DIR_PATH = Path(args.data_dir)
     TRAIN_DIR_PATH = DATA_DIR_PATH / args.train_dir
     VAL_DIR_PATH = DATA_DIR_PATH / args.val_dir
@@ -125,57 +129,71 @@ def main():
     #########
     # VIDEO #
     #########
-    mtcnn = MTCNN(
-        image_size=args.image_size,
-        min_face_size=args.min_face_size,
-        device=args.video_model_device,
-    )
+    with mlflow.start_run(run_name="Video Extraction"):
+        mlflow.log_param("video_train_size", len(train_file_paths))
+        mlflow.log_param("video_val_size", len(val_file_paths))
 
-    extract_video(
-        file_paths=train_file_paths,
-        mtcnn=mtcnn,
-        preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
-    )
-    extract_video(
-        file_paths=val_file_paths,
-        mtcnn=mtcnn,
-        preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
-    )
+        mtcnn = MTCNN(
+            image_size=args.image_size,
+            min_face_size=args.min_face_size,
+            device=args.video_model_device,
+        )
+
+        extract_video(
+            file_paths=train_file_paths,
+            mtcnn=mtcnn,
+            preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
+        )
+        extract_video(
+            file_paths=val_file_paths,
+            mtcnn=mtcnn,
+            preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
+        )
     
-    mtcnn.to("cpu")
-    del mtcnn
-
+        mtcnn.to("cpu")
+        del mtcnn
 
     #########
     # AUDIO #
     #########
-    extract_audio(
-        file_paths=train_file_paths,
-        preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH
-    )
-    extract_audio(
-        file_paths=val_file_paths,
-        preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH
-    )
+    with mlflow.start_run(run_name="Audio Extraction"):
+        mlflow.log_param("audio_train_size", len(train_file_paths))
+        mlflow.log_param("audio_val_size", len(val_file_paths))
+
+        extract_audio(
+            file_paths=train_file_paths,
+            preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH
+        )
+        extract_audio(
+            file_paths=val_file_paths,
+            preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH
+        )
 
     ########
     # TEXT #
     ########
-    model = whisper.load_model(
-        name="small",
-        device=args.text_model_device
-    )
-    
-    extract_text(
-        file_paths=train_file_paths,
-        preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
-        model=model
-    )
-    extract_text(
-        file_paths=val_file_paths,
-        preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
-        model=model
-    )
+    with mlflow.start_run(run_name="Text Extraction"):
+        mlflow.log_param("text_train_size", len(train_file_paths))
+        mlflow.log_param("text_val_size", len(val_file_paths))
+
+        model = whisper.load_model(
+            name="small",
+            device=args.text_model_device
+        )
+        
+        extract_text(
+            file_paths=train_file_paths,
+            preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
+            model=model
+        )
+        extract_text(
+            file_paths=val_file_paths,
+            preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
+            model=model
+        )
+
+        model.to("cpu")
+        del model
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 import argparse
+import os
 from pathlib import Path
 import requests
 import mlflow
@@ -7,7 +8,7 @@ import pandas as pd
 MLFLOW_URI = "http://localhost:5000"
 
 
-def ensure_mlflow():
+def ensure_mlflow() -> None:
     try:
         response = requests.head(MLFLOW_URI)
         response.raise_for_status()
@@ -19,7 +20,27 @@ def ensure_mlflow():
     mlflow.set_tracking_uri(uri=MLFLOW_URI)
 
 
-def parse_arguments(description: str = ""):
+def ensure_paths(data_dir_path: str, args: argparse.Namespace) -> None:
+    DATA_DIR_PATH = Path(data_dir_path)
+    TRAIN_DIR_PATH = DATA_DIR_PATH / args.train_dir
+    VAL_DIR_PATH = DATA_DIR_PATH / args.val_dir
+    PREPROCESSED_TRAIN_DIR_PATH = DATA_DIR_PATH / args.preprocessed_train_dir
+    PREPROCESSED_VAL_DIR_PATH = DATA_DIR_PATH / args.preprocessed_val_dir
+
+    os.makedirs(TRAIN_DIR_PATH, exist_ok=True)
+    os.makedirs(PREPROCESSED_TRAIN_DIR_PATH, exist_ok=True)
+    os.makedirs(PREPROCESSED_TRAIN_DIR_PATH / "video", exist_ok=True)
+    os.makedirs(PREPROCESSED_TRAIN_DIR_PATH / "audio", exist_ok=True)
+    os.makedirs(PREPROCESSED_TRAIN_DIR_PATH / "text", exist_ok=True)
+
+    os.makedirs(VAL_DIR_PATH, exist_ok=True)
+    os.makedirs(PREPROCESSED_VAL_DIR_PATH, exist_ok=True)
+    os.makedirs(PREPROCESSED_VAL_DIR_PATH / "video", exist_ok=True)
+    os.makedirs(PREPROCESSED_VAL_DIR_PATH / "audio", exist_ok=True)
+    os.makedirs(PREPROCESSED_VAL_DIR_PATH / "text", exist_ok=True)
+
+
+def parse_arguments(description: str) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=description)
 
     # paths
@@ -81,7 +102,7 @@ def parse_arguments(description: str = ""):
     return parser.parse_args()
 
 
-def merge_meta(args) -> tuple[pd.DataFrame, pd.DataFrame]:
+def merge_meta(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
     DATA_DIR_PATH = Path(args.data_dir)
     TRAIN_DIR_PATH = DATA_DIR_PATH / args.train_dir
     VAL_DIR_PATH = DATA_DIR_PATH / args.val_dir
