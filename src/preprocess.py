@@ -3,6 +3,7 @@ import warnings
 import requests
 import argparse
 from pathlib import Path
+from jaxtyping import Float
 from rich import print as rprint
 
 import cv2
@@ -12,7 +13,7 @@ import numpy as np
 import pandas as pd
 import moviepy as mp
 from facenet_pytorch import MTCNN
-from emotiefflib.facial_analysis import EmotiEffLibRecognizer
+from emotiefflib.facial_analysis import EmotiEffLibRecognizer, EmotiEffLibRecognizerBase
 import transformers
 from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
 
@@ -83,14 +84,14 @@ def preprocess(
     dir_path: Path,
     preprocessed_dir_path: Path,
     mtcnn: MTCNN,
-    emoti_eff: EmotiEffLibRecognizer,
+    emoti_eff: EmotiEffLibRecognizerBase,
     wav2vec2: Wav2Vec2ForCTC,
     wav2vec2_processor: Wav2Vec2Processor,
     device: str = "cpu",
 ):
     for index, row in df.iterrows():
-        sample_path = dir_path / f"{row['id']}_{row['q_index']}_{row['q_type']}.mp4"
-        rprint(sample_path)
+        sample_path = dir_path / f"{row['video_id']}.mp4"
+        rprint(f"{sample_path = }")
 
         video = mp.VideoFileClip(sample_path)
         audio = video.audio
@@ -142,18 +143,19 @@ def preprocess(
 
         # boost performance of conversions list[np.ndarray] -> np.ndarray
         features = np.array(features)
-        video_features = torch.from_numpy(features)
+        video_features: Float[torch.Tensor, "frames features"] = (  # noqa: F722
+            torch.from_numpy(features)
+        )
         torch.save(
             obj=video_features,
             f=preprocessed_dir_path / "video" / f"{sample_path.stem}.pt",
         )
-        # print(features_tensor.size())  # [frames, features] (i.e [1680, 1280])
 
         #########
         # Audio #
         #########
-        audio_tensor = torch.from_numpy(audio.to_soundarray(fps=audio.fps)).permute(
-            1, 0
+        audio_tensor: Float[torch.Tensor, "channels amplitudes"] = (  # noqa: F722
+            torch.from_numpy(audio.to_soundarray(fps=audio.fps)).permute(1, 0)
         )
         signal = audio_tensor.mean(dim=0)  # average by channels
 
@@ -234,9 +236,19 @@ def main():
         train_file_paths = sorted(TRAIN_DIR_PATH.glob("*.mp4"))
         for train_file_path in train_file_paths:
             _id, q_index, q_type = train_file_path.stem.split("_")
-            data.append({"id": _id, "q_index": q_index, "q_type": q_type})
+            data.append(
+                {
+                    "video_id": train_file_path.stem,
+                    "id": _id,
+                    "q_index": q_index,
+                    "q_type": q_type,
+                }
+            )
         df_train_files = pd.DataFrame(data)
         df_train_with_meta = pd.merge(df_train_files, df_train, how="left", on="id")
+        df_train_with_meta.to_csv(
+            PREPROCESSED_TRAIN_DIR_PATH / "train_data.csv", index=False
+        )
         mlflow.log_param("train_size", len(df_train_with_meta))
 
         df_val = pd.read_csv(DATA_DIR_PATH / args.val_csv)
@@ -244,9 +256,17 @@ def main():
         val_file_paths = sorted(VAL_DIR_PATH.glob("*.mp4"))
         for val_file_path in val_file_paths:
             _id, q_index, q_type = val_file_path.stem.split("_")
-            data.append({"id": _id, "q_index": q_index, "q_type": q_type})
+            data.append(
+                {
+                    "video_id": val_file_path.stem,
+                    "id": _id,
+                    "q_index": q_index,
+                    "q_type": q_type,
+                }
+            )
         df_val_files = pd.DataFrame(data)
         df_val_with_meta = pd.merge(df_val_files, df_val, how="left", on="id")
+        df_val_with_meta.to_csv(PREPROCESSED_VAL_DIR_PATH / "val_data.csv", index=False)
         mlflow.log_param("val_size", len(df_val_with_meta))
 
         ##########

@@ -1,0 +1,11 @@
+video_id,id,q_index,q_type,gender,age,education,work_experience,Honesty-Humility,Extraversion,Agreeableness,Conscientiousness,Integrity,Collegiality,Social_versatility,Development_orientation,Hireability
+5a03d20a7ecfc50001be0a7a_q1_generic,5a03d20a7ecfc50001be0a7a,q1,generic,2,38,7,13,3.525,3.525,2.28125,3.95,3.8,3.0,2.9,4.1,3.2
+5a03d20a7ecfc50001be0a7a_q3_personality,5a03d20a7ecfc50001be0a7a,q3,personality,2,38,7,13,3.525,3.525,2.28125,3.95,3.8,3.0,2.9,4.1,3.2
+5a03d20a7ecfc50001be0a7a_q6_personality,5a03d20a7ecfc50001be0a7a,q6,personality,2,38,7,13,3.525,3.525,2.28125,3.95,3.8,3.0,2.9,4.1,3.2
+5a08c9a7f2e3460001edb063_q1_generic,5a08c9a7f2e3460001edb063,q1,generic,2,26,4,1,3.4625,1.94375,3.69375,2.725,3.7,3.4,3.3,2.8,2.5
+5a57cb50acc75b00017a2b01_q1_generic,5a57cb50acc75b00017a2b01,q1,generic,2,38,5,15,3.51875,3.18125,3.80625,3.7625,3.6,4.1,4.0,3.6,3.8
+5a8ac2d8f49c9a0001f3ab34_q1_generic,5a8ac2d8f49c9a0001f3ab34,q1,generic,2,36,3,19,2.65,3.0625,3.31875,2.5625,3.6,3.5,3.7,3.6,3.5
+5a8d1e105292b800012342c9_q1_generic,5a8d1e105292b800012342c9,q1,generic,2,46,4,21,3.09375,3.33125,3.04375,3.925,3.5,4.1,4.0,3.3,3.5
+5a8d8079190420000156435d_q1_generic,5a8d8079190420000156435d,q1,generic,1,38,4,16,2.81875,3.325,3.625,2.45,2.7,3.0,3.0,2.9,2.6
+5a92d74035237b0001123af1_q1_generic,5a92d74035237b0001123af1,q1,generic,2,26,4,5,3.1375,3.5875,3.50625,3.1625,3.6,4.2,4.1,3.3,3.7
+5a95fee189de8200013eddd4_q1_generic,5a95fee189de8200013eddd4,q1,generic,2,40,3,20,3.36875,2.8125,2.9125,2.89375,3.5,2.9,2.9,2.8,2.8

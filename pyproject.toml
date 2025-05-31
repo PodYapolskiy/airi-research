@@ -9,6 +9,7 @@ dependencies = [
     "facenet-pytorch>=2.6.0",
     "ipykernel>=6.29.5",
     "ipywidgets>=8.1.7",
+    "jaxtyping>=0.3.2",
     "mlflow>=2.22.0",
     "moviepy>=2.2.1",
     "numpy<2",
