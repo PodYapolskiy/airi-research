@@ -129,71 +129,74 @@ def main():
     #########
     # VIDEO #
     #########
-    with mlflow.start_run(run_name="Video Extraction"):
-        mlflow.log_param("video_train_size", len(train_file_paths))
-        mlflow.log_param("video_val_size", len(val_file_paths))
+    if args.extract_video:
+        with mlflow.start_run(run_name="Video Extraction"):
+            mlflow.log_param("video_train_size", len(train_file_paths))
+            mlflow.log_param("video_val_size", len(val_file_paths))
 
-        mtcnn = MTCNN(
-            image_size=args.image_size,
-            min_face_size=args.min_face_size,
-            device=args.video_model_device,
-        )
+            mtcnn = MTCNN(
+                image_size=args.image_size,
+                min_face_size=args.min_face_size,
+                device=args.video_model_device,
+            )
 
-        extract_video(
-            file_paths=train_file_paths,
-            mtcnn=mtcnn,
-            preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
-        )
-        extract_video(
-            file_paths=val_file_paths,
-            mtcnn=mtcnn,
-            preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
-        )
-    
-        mtcnn.to("cpu")
-        del mtcnn
+            extract_video(
+                file_paths=train_file_paths,
+                mtcnn=mtcnn,
+                preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
+            )
+            extract_video(
+                file_paths=val_file_paths,
+                mtcnn=mtcnn,
+                preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
+            )
+        
+            mtcnn.to("cpu")
+            del mtcnn
 
     #########
     # AUDIO #
     #########
-    with mlflow.start_run(run_name="Audio Extraction"):
-        mlflow.log_param("audio_train_size", len(train_file_paths))
-        mlflow.log_param("audio_val_size", len(val_file_paths))
+    if args.extract_audio:
+        with mlflow.start_run(run_name="Audio Extraction"):
+            mlflow.log_param("audio_train_size", len(train_file_paths))
+            mlflow.log_param("audio_val_size", len(val_file_paths))
 
-        extract_audio(
-            file_paths=train_file_paths,
-            preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH
-        )
-        extract_audio(
-            file_paths=val_file_paths,
-            preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH
-        )
+            extract_audio(
+                file_paths=train_file_paths,
+                preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH
+            )
+            extract_audio(
+                file_paths=val_file_paths,
+                preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH
+            )
 
     ########
     # TEXT #
     ########
-    with mlflow.start_run(run_name="Text Extraction"):
-        mlflow.log_param("text_train_size", len(train_file_paths))
-        mlflow.log_param("text_val_size", len(val_file_paths))
+    if args.extract_text:
+        with mlflow.start_run(run_name="Text Extraction"):
+            mlflow.log_param("text_train_size", len(train_file_paths))
+            mlflow.log_param("text_val_size", len(val_file_paths))
 
-        model = whisper.load_model(
-            name="small",
-            device=args.text_model_device
-        )
-        
-        extract_text(
-            file_paths=train_file_paths,
-            preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
-            model=model
-        )
-        extract_text(
-            file_paths=val_file_paths,
-            preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
-            model=model
-        )
+            model = whisper.load_model(
+                name="small",
+                device=args.text_model_device
+            )
+            
+            extract_text(
+                file_paths=train_file_paths,
+                preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
+                model=model
+            )
+            extract_text(
+                file_paths=val_file_paths,
+                preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
+                model=model
+            )
 
-        model.to("cpu")
-        del model
+            model.to("cpu")
+            del model
 
 
 if __name__ == "__main__":

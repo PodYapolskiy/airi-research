@@ -99,6 +99,16 @@ def parse_arguments(description: str) -> argparse.Namespace:
     parser.add_argument("--audio-model-device", type=str, default="cpu")
     parser.add_argument("--text-model-device", type=str, default="cuda")
 
+    # extractions
+    parser.add_argument("--extract-video", type=bool, default=False)
+    parser.add_argument("--extract-audio", type=bool, default=False)
+    parser.add_argument("--extract-text", type=bool, default=False)
+
+    # preprocessing
+    parser.add_argument("--preprocess-video", type=bool, default=False)
+    parser.add_argument("--preprocess-audio", type=bool, default=False)
+    parser.add_argument("--preprocess-text", type=bool, default=False)
+
     return parser.parse_args()
 
 
