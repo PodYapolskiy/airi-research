@@ -1,8 +1,11 @@
+import argparse
 import warnings
 from pathlib import Path
 from jaxtyping import Float
+import pandas as pd
 from rich import print as rprint
 
+from sklearn.preprocessing import MinMaxScaler
 import torch
 from torch import Tensor
 import mlflow
@@ -13,9 +16,93 @@ import torchaudio
 import transformers
 from transformers import Wav2Vec2ForXVector, Wav2Vec2Processor
 
-from utils import ensure_mlflow, ensure_paths, merge_meta, parse_arguments
+from utils import ensure_mlflow, ensure_paths  # , merge_meta
 
 warnings.filterwarnings("ignore")
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Preprocessing Argument Parser")
+
+    # paths
+    parser.add_argument(
+        "--data-dir", type=str, default="data", help="Path to the data directory"
+    )
+    parser.add_argument(
+        "--train-dir",
+        type=str,
+        default="train_data",
+        help="Path to the train directory",
+    )
+    parser.add_argument(
+        "--val-dir", type=str, default="val_data", help="Path to the val directory"
+    )
+    parser.add_argument(
+        "--preprocessed-train-dir",
+        type=str,
+        default="preprocessed_train_data",
+        help="Path to the preprocessed train directory",
+    )
+    parser.add_argument(
+        "--preprocessed-val-dir",
+        type=str,
+        default="preprocessed_val_data",
+        help="Path to the preprocessed val directory",
+    )
+
+    # meta
+    parser.add_argument(
+        "--train-csv",
+        type=str,
+        default="train_data.csv",
+        help="Name of the train data CSV file",
+    )
+    parser.add_argument(
+        "--val-csv",
+        type=str,
+        default="val_data.csv",
+        help="Name of the validation data CSV file",
+    )
+
+    # images
+    parser.add_argument(
+        "--image-size", type=int, default=224, help="Image size for face detection"
+    )
+    parser.add_argument(
+        "--min-face-size", type=int, default=50, help="Minimum face size for detection"
+    )
+    parser.add_argument("--custom-preprocess", type=bool, default=False)
+
+    # models
+    parser.add_argument("--video-model-device", type=str, default="cuda")
+    parser.add_argument("--audio-model-device", type=str, default="cpu")
+    parser.add_argument("--text-model-device", type=str, default="cuda")
+
+    # preprocessing
+    parser.add_argument("--preprocess-meta", type=bool, default=True)
+    parser.add_argument("--preprocess-video", type=bool, default=False)
+    parser.add_argument("--preprocess-audio", type=bool, default=False)
+    parser.add_argument("--preprocess-text", type=bool, default=False)
+
+    return parser.parse_args()
+
+
+def preprocess_meta(
+    df: pd.DataFrame,
+    is_train: bool,
+    features_scaler,
+):
+    categorical_features = ["gender", "education"]
+    to_scale_features = ["age", "work_experience"]
+
+    df = pd.get_dummies(df, columns=categorical_features, dtype=int, drop_first=False)
+
+    if is_train:
+        features_scaler.fit(df[to_scale_features])
+
+    df[to_scale_features] = features_scaler.transform(df[to_scale_features])
+
+    return df
 
 
 def preprocess_video(
@@ -81,7 +168,7 @@ def preprocess_text():
 def main():
     ensure_mlflow()
     mlflow.set_experiment("Preprocessing")
-    args = parse_arguments("Video processing script")
+    args = parse_arguments()
 
     ensure_paths(args.data_dir, args)
     DATA_DIR_PATH = Path(args.data_dir)
@@ -91,10 +178,42 @@ def main():
     ########
     # Meta #
     ########
-    with mlflow.start_run(run_name="Meta Preprocessing"):
-        df_train, df_val = merge_meta(args)
-        mlflow.log_param("train_size", len(df_train))
-        mlflow.log_param("val_size", len(df_val))
+    if args.preprocess_meta:
+        with mlflow.start_run(run_name="Meta Preprocessing"):
+            df_train = pd.read_csv(DATA_DIR_PATH / args.train_csv)
+            df_val = pd.read_csv(DATA_DIR_PATH / args.val_csv)
+
+            features_scaler = MinMaxScaler()
+            df_train_preprocessed = preprocess_meta(
+                df=df_train,
+                features_scaler=features_scaler,
+                is_train=True,
+            )
+            df_val_preprocessed = preprocess_meta(
+                df=df_val,
+                features_scaler=features_scaler,
+                is_train=False,
+            )
+
+            # to handle missing columns
+            left_columns = list(
+                set(df_train_preprocessed.columns) - set(df_val_preprocessed.columns)
+            )
+            df_val_preprocessed[left_columns] = 0
+
+            df_train_preprocessed.to_csv(
+                PREPROCESSED_TRAIN_DIR_PATH / args.train_csv, index=False
+            )
+            df_val_preprocessed.to_csv(
+                PREPROCESSED_VAL_DIR_PATH / args.val_csv, index=False
+            )
+
+            assert len(df_train_preprocessed.columns) == len(
+                df_train_preprocessed.columns
+            )
+            mlflow.log_param("columns_number", len(df_train_preprocessed.columns))
+            mlflow.log_param("train_size", len(df_train_preprocessed))
+            mlflow.log_param("val_size", len(df_val_preprocessed))
 
     #########
     # Video #
