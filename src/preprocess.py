@@ -79,10 +79,30 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--text-model-device", type=str, default="cuda")
 
     # preprocessing
-    parser.add_argument("--preprocess-meta", type=bool, default=True)
-    parser.add_argument("--preprocess-video", type=bool, default=False)
-    parser.add_argument("--preprocess-audio", type=bool, default=False)
-    parser.add_argument("--preprocess-text", type=bool, default=False)
+    parser.add_argument(
+        "--preprocess-meta",
+        type=bool,
+        default=True,
+        action=argparse.BooleanOptionalAction,
+    )
+    parser.add_argument(
+        "--preprocess-video",
+        type=bool,
+        default=False,
+        action=argparse.BooleanOptionalAction,
+    )
+    parser.add_argument(
+        "--preprocess-audio",
+        type=bool,
+        default=False,
+        action=argparse.BooleanOptionalAction,
+    )
+    parser.add_argument(
+        "--preprocess-text",
+        type=bool,
+        default=False,
+        action=argparse.BooleanOptionalAction,
+    )
 
     return parser.parse_args()
 
