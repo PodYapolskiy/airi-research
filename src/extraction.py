@@ -1,5 +1,6 @@
 import cv2
 import mlflow
+import argparse
 import numpy as np
 from pathlib import Path
 from rich import print as rprint
@@ -11,7 +12,71 @@ from jaxtyping import Float
 from facenet_pytorch import MTCNN
 import whisper
 
-from utils import ensure_mlflow, ensure_paths, parse_arguments
+from utils import ensure_mlflow, ensure_paths
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Extraction Argument Parser")
+
+    # paths
+    parser.add_argument(
+        "--data-dir", type=str, default="data", help="Path to the data directory"
+    )
+    parser.add_argument(
+        "--train-dir",
+        type=str,
+        default="train_data",
+        help="Path to the train directory",
+    )
+    parser.add_argument(
+        "--val-dir", type=str, default="val_data", help="Path to the val directory"
+    )
+    parser.add_argument(
+        "--preprocessed-train-dir",
+        type=str,
+        default="preprocessed_train_data",
+        help="Path to the preprocessed train directory",
+    )
+    parser.add_argument(
+        "--preprocessed-val-dir",
+        type=str,
+        default="preprocessed_val_data",
+        help="Path to the preprocessed val directory",
+    )
+
+    # meta
+    parser.add_argument(
+        "--train-csv",
+        type=str,
+        default="train_data.csv",
+        help="Name of the train data CSV file",
+    )
+    parser.add_argument(
+        "--val-csv",
+        type=str,
+        default="val_data.csv",
+        help="Name of the validation data CSV file",
+    )
+
+    # images
+    parser.add_argument(
+        "--image-size", type=int, default=224, help="Image size for face detection"
+    )
+    parser.add_argument(
+        "--min-face-size", type=int, default=50, help="Minimum face size for detection"
+    )
+
+    # models
+    parser.add_argument("--video-model-device", type=str, default="cuda")
+    parser.add_argument("--audio-model-device", type=str, default="cpu")
+    parser.add_argument("--text-model-device", type=str, default="cuda")
+
+    # extractions
+    parser.add_argument("--extract-video", type=bool, default=False)
+    parser.add_argument("--extract-audio", type=bool, default=False)
+    parser.add_argument("--extract-text", type=bool, default=False)
+
+    return parser.parse_args()
 
 
 def extract_video(
@@ -114,7 +179,7 @@ def extract_text(
 def main():
     ensure_mlflow()
     mlflow.set_experiment("Modalities Extraction")
-    args = parse_arguments("Modalities extraction.")
+    args = parse_arguments()
 
     ensure_paths(args.data_dir, args)
     DATA_DIR_PATH = Path(args.data_dir)
