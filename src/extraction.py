@@ -72,9 +72,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--text-model-device", type=str, default="cuda")
 
     # extractions
-    parser.add_argument("--extract-video", type=bool, default=False)
-    parser.add_argument("--extract-audio", type=bool, default=False)
-    parser.add_argument("--extract-text", type=bool, default=False)
+    parser.add_argument("--extract-video", type=bool, default=False, action=argparse.BooleanOptionalAction)
+    parser.add_argument("--extract-audio", type=bool, default=False, action=argparse.BooleanOptionalAction)
+    parser.add_argument("--extract-text", type=bool, default=False, action=argparse.BooleanOptionalAction)
 
     return parser.parse_args()
 
@@ -194,7 +194,7 @@ def main():
     #########
     # VIDEO #
     #########
-    if bool(args.extract_video):
+    if args.extract_video:
         with mlflow.start_run(run_name="Video Extraction"):
             mlflow.log_param("video_train_size", len(train_file_paths))
             mlflow.log_param("video_val_size", len(val_file_paths))
@@ -225,7 +225,7 @@ def main():
     #########
     # AUDIO #
     #########
-    if bool(args.extract_audio):
+    if args.extract_audio:
         with mlflow.start_run(run_name="Audio Extraction"):
             mlflow.log_param("audio_train_size", len(train_file_paths))
             mlflow.log_param("audio_val_size", len(val_file_paths))
@@ -242,7 +242,7 @@ def main():
     ########
     # TEXT #
     ########
-    if bool(args.extract_text):
+    if args.extract_text:
         with mlflow.start_run(run_name="Text Extraction"):
             mlflow.log_param("text_train_size", len(train_file_paths))
             mlflow.log_param("text_val_size", len(val_file_paths))
