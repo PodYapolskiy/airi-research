@@ -8,7 +8,7 @@ uv run src/extraction.py \
     --preprocessed-val-dir preprocessed_val_data \
     --train-csv train_data.csv \
     --val-csv val_data.csv \
-    --extract-video 1 \
+    --extract-video 0 \
     --extract-audio 1 \
     --extract-text 1 \
     --video-model-device cpu \

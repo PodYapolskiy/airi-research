@@ -194,11 +194,14 @@ def main():
     #########
     # VIDEO #
     #########
-    if args.extract_video:
+    if bool(args.extract_video):
         with mlflow.start_run(run_name="Video Extraction"):
             mlflow.log_param("video_train_size", len(train_file_paths))
             mlflow.log_param("video_val_size", len(val_file_paths))
 
+            # TODO: fix
+            # 549b8ef4fdf99b4ffa5fa0c9_q2_generic.mp4
+            #  ValueError: setting an array element with a sequence. The requested array has an inhomogeneous shape after 1 dimensions. The detected shape was (128,) + inhomogeneous part.
             mtcnn = MTCNN(
                 image_size=args.image_size,
                 min_face_size=args.min_face_size,
@@ -222,7 +225,7 @@ def main():
     #########
     # AUDIO #
     #########
-    if args.extract_audio:
+    if bool(args.extract_audio):
         with mlflow.start_run(run_name="Audio Extraction"):
             mlflow.log_param("audio_train_size", len(train_file_paths))
             mlflow.log_param("audio_val_size", len(val_file_paths))
@@ -239,7 +242,7 @@ def main():
     ########
     # TEXT #
     ########
-    if args.extract_text:
+    if bool(args.extract_text):
         with mlflow.start_run(run_name="Text Extraction"):
             mlflow.log_param("text_train_size", len(train_file_paths))
             mlflow.log_param("text_val_size", len(val_file_paths))
