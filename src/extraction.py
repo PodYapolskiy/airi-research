@@ -1,3 +1,4 @@
+import os
 import cv2
 import mlflow
 import argparse
@@ -87,6 +88,9 @@ def extract_video(
     for file_path in file_paths:
         rprint(f"{file_path = }")
 
+        if os.path.exists(preprocessed_dir_path / "video" / f"{file_path.stem}.mp4"):
+            continue
+
         video = mp.VideoFileClip(file_path)
         frames = [frame for frame in video.iter_frames()]
 
@@ -145,6 +149,9 @@ def extract_audio(
     for file_path in file_paths:
         rprint(f"{file_path = }")
 
+        if os.path.exists(preprocessed_dir_path / "audio" / f"{file_path.stem}.wav"):
+            continue
+
         video = mp.VideoFileClip(file_path)
         audio = video.audio
 
@@ -160,6 +167,7 @@ def extract_text(
     # check if audio preprocessing has already been accomplished
     audio_files = sorted(preprocessed_dir_path.glob("audio/*.wav"))
     if len(audio_files) != len(file_paths):
+        rprint("Extracting audio first...")
         extract_audio(file_paths, preprocessed_dir_path)
 
     audio_files = sorted(preprocessed_dir_path.glob("audio/*.wav"))
@@ -168,6 +176,9 @@ def extract_text(
 
     for file_path in file_paths:
         rprint(f"{file_path = }")
+
+        if os.path.exists(preprocessed_dir_path / "text" / f"{file_path.stem}.txt"):
+            continue
 
         text = model.transcribe(str(file_path), temperature=0)["text"]
 
