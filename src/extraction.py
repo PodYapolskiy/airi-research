@@ -124,6 +124,16 @@ def extract_video(
                 batch_cropped_frames: list[Float[Tensor, "channel height width"]] = (
                     mtcnn(batch_frames)
                 )
+
+                # if all None handle and return all zeros
+                if all(
+                    isinstance(cropped_frame, NoneType)
+                    for cropped_frame in batch_cropped_frames
+                ):
+                    batch_cropped_frames = [
+                        torch.zeros(3, image_size, image_size)
+                    ] * batch_size
+
             except ValueError:
                 batch_cropped_frames = []
 
@@ -131,11 +141,27 @@ def extract_video(
                     cropped_frame = mtcnn(batch_frame)
 
                     if isinstance(cropped_frame, NoneType):
-                        batch_cropped_frames.append(
-                            torch.zeros(3, image_size, image_size)
-                        )
-                    else:
-                        batch_cropped_frames.append(cropped_frame)
+                        cropped_frame = torch.zeros(3, image_size, image_size)
+
+                    batch_cropped_frames.append(cropped_frame)
+
+            # not a batch solution
+            # batch_cropped_frames: list[Float[Tensor, "channel height width"]] = []
+            # for batch_frame in batch_frames:
+            #     cropped_frame = mtcnn(batch_frame)
+
+            #     if isinstance(cropped_frame, NoneType):
+            #         cropped_frame = torch.zeros(3, image_size, image_size)
+
+            #     batch_cropped_frames.append(cropped_frame)
+
+            assert all(
+                [
+                    isinstance(cropped_frame, Tensor)
+                    and cropped_frame.shape == (3, image_size, image_size)
+                    for cropped_frame in batch_cropped_frames
+                ]
+            )
 
             # prepare for emotiefflib
             batch_cropped_frames = [
