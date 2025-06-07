@@ -1,4 +1,5 @@
 import os
+from types import NoneType
 import cv2
 import mlflow
 import argparse
@@ -73,9 +74,24 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--text-model-device", type=str, default="cuda")
 
     # extractions
-    parser.add_argument("--extract-video", type=bool, default=False, action=argparse.BooleanOptionalAction)
-    parser.add_argument("--extract-audio", type=bool, default=False, action=argparse.BooleanOptionalAction)
-    parser.add_argument("--extract-text", type=bool, default=False, action=argparse.BooleanOptionalAction)
+    parser.add_argument(
+        "--extract-video",
+        type=bool,
+        default=False,
+        action=argparse.BooleanOptionalAction,
+    )
+    parser.add_argument(
+        "--extract-audio",
+        type=bool,
+        default=False,
+        action=argparse.BooleanOptionalAction,
+    )
+    parser.add_argument(
+        "--extract-text",
+        type=bool,
+        default=False,
+        action=argparse.BooleanOptionalAction,
+    )
 
     return parser.parse_args()
 
@@ -84,6 +100,7 @@ def extract_video(
     file_paths: list[Path],
     preprocessed_dir_path: Path,
     mtcnn: MTCNN,
+    image_size: int,
 ):
     for file_path in file_paths:
         rprint(f"{file_path = }")
@@ -98,14 +115,31 @@ def extract_video(
         cropped_frames: list[np.ndarray] = []
         for idx in range(0, len(frames), batch_size):
             batch_frames = frames[idx : idx + batch_size]
-            batch_cropped_frames: list[Float[Tensor, "channel height width"]] = (  # noqa: F722
-                mtcnn(batch_frames)
-            )
-        
+
+            #! IMPORTANT
+            # in case when face can not be detected on one of the frames in batch
+            # MTCNN does not hadle it and output shapes became inconsistent
+            # so in case of error process each frame in batch individually
+            try:
+                batch_cropped_frames: list[Float[Tensor, "channel height width"]] = (
+                    mtcnn(batch_frames)
+                )
+            except ValueError:
+                batch_cropped_frames = []
+
+                for batch_frame in batch_frames:
+                    cropped_frame = mtcnn(batch_frame)
+
+                    if isinstance(cropped_frame, NoneType):
+                        batch_cropped_frames.append(
+                            torch.zeros(3, image_size, image_size)
+                        )
+                    else:
+                        batch_cropped_frames.append(cropped_frame)
+
             # prepare for emotiefflib
             batch_cropped_frames = [
-                cropped_frame.permute(1, 2, 0)
-                for cropped_frame in batch_cropped_frames
+                cropped_frame.permute(1, 2, 0) for cropped_frame in batch_cropped_frames
             ]
             batch_cropped_frames = [
                 (cropped_frame + 1) / 2 * 255  # from [-1, 1] to [0, 255]
@@ -116,13 +150,11 @@ def extract_video(
                 for cropped_frame in batch_cropped_frames
             ]
             batch_cropped_frames = [
-                cropped_frame.numpy()
-                for cropped_frame in batch_cropped_frames
+                cropped_frame.numpy() for cropped_frame in batch_cropped_frames
             ]
-            
+
             cropped_frames.extend(batch_cropped_frames)
 
-    
         # save as video of face frames
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # MP4V
         frameSize = cropped_frames[0].shape[:2]
@@ -160,9 +192,7 @@ def extract_audio(
 
 
 def extract_text(
-    file_paths: list[Path],
-    preprocessed_dir_path: Path,
-    model: whisper.Whisper
+    file_paths: list[Path], preprocessed_dir_path: Path, model: whisper.Whisper
 ):
     # check if audio preprocessing has already been accomplished
     audio_files = sorted(preprocessed_dir_path.glob("audio/*.wav"))
@@ -217,19 +247,22 @@ def main():
                 image_size=args.image_size,
                 min_face_size=args.min_face_size,
                 device=args.video_model_device,
+                selection_method="largest",
             )
 
             extract_video(
                 file_paths=train_file_paths,
                 mtcnn=mtcnn,
+                image_size=args.image_size,
                 preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
             )
             extract_video(
                 file_paths=val_file_paths,
                 mtcnn=mtcnn,
+                image_size=args.image_size,
                 preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
             )
-        
+
             mtcnn.to("cpu")
             del mtcnn
 
@@ -243,11 +276,11 @@ def main():
 
             extract_audio(
                 file_paths=train_file_paths,
-                preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH
+                preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
             )
             extract_audio(
                 file_paths=val_file_paths,
-                preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH
+                preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
             )
 
     ########
@@ -258,20 +291,17 @@ def main():
             mlflow.log_param("text_train_size", len(train_file_paths))
             mlflow.log_param("text_val_size", len(val_file_paths))
 
-            model = whisper.load_model(
-                name="small",
-                device=args.text_model_device
-            )
-            
+            model = whisper.load_model(name="small", device=args.text_model_device)
+
             extract_text(
                 file_paths=train_file_paths,
                 preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
-                model=model
+                model=model,
             )
             extract_text(
                 file_paths=val_file_paths,
                 preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
-                model=model
+                model=model,
             )
 
             model.to("cpu")
