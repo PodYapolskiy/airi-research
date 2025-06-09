@@ -1,4 +1,5 @@
 import argparse
+import os
 import warnings
 from pathlib import Path
 from jaxtyping import Float
@@ -177,6 +178,9 @@ def preprocess_audio(
     for audio_path in sorted(preprocessed_dir_path.glob("audio/*.wav")):
         rprint(f"{audio_path = }")
 
+        if os.path.exists(audio_path.with_suffix(".pt")):
+            continue
+
         waveform, sr = torchaudio.load(audio_path)
         # waveform = torchaudio.functional.vad(waveform, sr)  # trim silence
 
@@ -185,12 +189,20 @@ def preprocess_audio(
         ).input_values.squeeze(0)
         signal = signal.half().to(device)
 
-        with torch.no_grad():
-            outputs = model(signal)  # noqa: F722
+        try:
+            with torch.no_grad():
+                outputs = model(signal)  # noqa: F722
+            audio_features: Float[torch.Tensor, "channels features"] = (  # noqa: F722
+                outputs.embeddings.detach().cpu()
+            )
+        except torch.OutOfMemoryError:
+            embeddings = []
+            chunks = torch.split(signal, 120 * 16000, dim=1)  # 2-mitute chunks
+            with torch.no_grad():
+                for chunk in chunks:
+                    embeddings.append(model(chunk).embeddings)
 
-        audio_features: Float[torch.Tensor, "channels features"] = (  # noqa: F722
-            outputs.embeddings.detach().cpu()
-        )
+            audio_features = torch.mean(torch.stack(embeddings), dim=0)
 
         torch.save(
             obj=audio_features,
