@@ -1,23 +1,25 @@
 import os
 import pandas as pd
 from pathlib import Path
+from typing import Tuple
 
 import torch
 from torch import Tensor
-from torch.utils.data import Dataset  # , DataLoader
+from torch.utils.data import Dataset, DataLoader
 
 # from jaxtyping import Float
 
 
-def get_tensor_from_path(path: str, default_dim: int) -> Tensor:
+def get_tensor_from_path(path: str, dim: int) -> Tensor:
     if os.path.exists(path):
-        tensor = torch.load(path)
+        tensor = torch.load(path, map_location="cpu", weights_only=True)
         # Average across frames if needed
         if len(tensor.shape) > 1:
             tensor = torch.mean(tensor, dim=0)
     else:
-        tensor = torch.zeros(default_dim)  # Default dimension for video
+        tensor = torch.zeros(dim)
 
+    assert tensor.size(-1) == dim
     return tensor
 
 
@@ -88,11 +90,11 @@ class PersonalityDataset(Dataset):
         )
 
     def __len__(self):
-        return len(self.video_paths)
+        return len(self.labels)
 
     def __getitem__(self, idx):
         video_tensor = get_tensor_from_path(self.video_paths[idx], 1280)
-        audio_tensor = get_tensor_from_path(self.audio_paths[idx], 512)
+        audio_tensor = get_tensor_from_path(self.audio_paths[idx], 512).float()
         text_tensor = get_tensor_from_path(self.text_paths[idx], 1024)
 
         return {
@@ -211,45 +213,55 @@ class PerformanceDataset(Dataset):
         return interview_answers
 
 
-# def get_dataloaders(
-#     train_df, val_df, preprocessed_dir_path, dataset, batch_size=32, num_workers=4
-# ):
-#     """
-#     Create train and validation dataloaders.
+def get_personality_dataloaders(
+    preprocessed_train_dir: Path,
+    preprocessed_val_dir: Path,
+    train_csv: str,
+    val_csv: str,
+    personality_trait: str,
+    batch_size: int = 32,
+    num_workers: int = 4,
+) -> Tuple[DataLoader, DataLoader]:
+    """
+    Create train and validation dataloaders.
 
-#     Args:
-#         train_df (pd.DataFrame): Training DataFrame
-#         val_df (pd.DataFrame): Validation DataFrame
-#         data_dir (str): Path to the data directory
-#         batch_size (int): Batch size for dataloaders
-#         num_workers (int): Number of workers for dataloaders
+    Args:
+        train_df (pd.DataFrame): Training DataFrame
+        val_df (pd.DataFrame): Validation DataFrame
+        data_dir (str): Path to the data directory
+        batch_size (int): Batch size for dataloaders
+        num_workers (int): Number of workers for dataloaders
 
-#     Returns:
-#         tuple: (train_dataloader, val_dataloader, demographic_dim)
-#     """
+    Returns:
+        tuple: (train_dataloader, val_dataloader)
+    """
+    df_train = pd.read_csv(preprocessed_train_dir / train_csv)
+    df_val = pd.read_csv(preprocessed_val_dir / val_csv)
 
-#     train_dataset = PersonalityTraitsDataset(
-#         df=train_df, preprocessed_dir_path=preprocessed_dir_path
-#     )
+    train_dataset = PersonalityDataset(
+        df=df_train,
+        preprocessed_dir_path=preprocessed_train_dir,
+        personality_trait=personality_trait,
+    )
+    val_dataset = PersonalityDataset(
+        df=df_val,
+        preprocessed_dir_path=preprocessed_val_dir,
+        personality_trait=personality_trait,
+    )
 
-#     val_dataset = PersonalityTraitsDataset(
-#         df=val_df, preprocessed_dir_path=preprocessed_dir_path
-#     )
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        shuffle=True,
+        # pin_memory=True,
+    )
+    val_dataloader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        shuffle=False,
+        # pin_memory=True,
+    )
 
-#     train_dataloader = DataLoader(
-#         train_dataset,
-#         batch_size=batch_size,
-#         shuffle=True,
-#         num_workers=num_workers,
-#         pin_memory=True,
-#     )
-
-#     val_dataloader = DataLoader(
-#         val_dataset,
-#         batch_size=batch_size,
-#         shuffle=False,
-#         num_workers=num_workers,
-#         pin_memory=True,
-#     )
-
-#     return train_dataloader, val_dataloader, train_dataset.demographic_dim
+    return train_dataloader, val_dataloader
