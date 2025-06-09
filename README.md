@@ -6,37 +6,44 @@
 
 ## Metrics
 
-Dummy - ridge regression on age, work_experience, gender, education
-
-<!-- Baseline - -->
+- [Only Meta](./notebooks/dummy.ipynb) - ridge regression on `["age", "work_experience", "gender", "education"]`
+- [Only Video](.) - ...
+- [Only Audio](.) - ...
+- [Only Text](.) - ...
 
 #### Personality
 
-|  Metric   | Label             | Dummy  | Baseline |
-| :-------: | :---------------- | :----: | :------: |
-|    MSE    | Honesty-Humility  | 0.185  |          |
-|           | Extraversion      | 0.282  |          |
-|           | Agreeableness     | 0.216  |          |
-|           | Conscientiousness | 0.179  |          |
-| $` R^2 `$ | Honesty-Humility  | 0.022  |          |
-|           | Extraversion      | -0.001 |          |
-|           | Agreeableness     | 0.014  |          |
-|           | Conscientiousness | 0.052  |          |
+|  Metric   | Label             | Only Meta | Only Video | Only Audio | Only Text |
+| :-------: | :---------------- | :-------: | :--------: | :--------: | :-------: |
+|    MSE    | Honesty-Humility  |   0.185   |            |   0.215    |           |
+|           | Extraversion      |   0.282   |            |   0.278    |           |
+|           | Agreeableness     |   0.216   |            |   0.219    |           |
+|           | Conscientiousness |   0.179   |            |   0.200    |           |
+| $` R^2 `$ | Honesty-Humility  |   0.022   |            |   -0.133   |           |
+|           | Extraversion      |  -0.001   |            |   0.012    |           |
+|           | Agreeableness     |   0.014   |            |   0.000    |           |
+|           | Conscientiousness |   0.052   |            |   -0.063   |           |
 
 #### Performance
 
-|  Metric   | Label                   | Dummy | Baseline |
-| :-------: | :---------------------- | :---: | :------: |
-|    MSE    | Integrity               | 0.204 |          |
-|           | Collegiality            | 0.292 |          |
-|           | Social_versatility      | 0.286 |          |
-|           | Development_orientation | 0.227 |          |
-|           | Hireability             | 0.350 |          |
-| $` R^2 `$ | Integrity               | 0.063 |          |
-|           | Collegiality            | 0.097 |          |
-|           | Social_versatility      | 0.100 |          |
-|           | Development_orientation | 0.039 |          |
-|           | Hireability             | 0.111 |          |
+|  Metric   | Label                   | Only Meta | Only Video | Only Audio | Only Text |
+| :-------: | :---------------------- | :-------: | :--------: | :--------: | :-------: |
+|    MSE    | Integrity               |   0.204   |            |            |           |
+|           | Collegiality            |   0.292   |            |            |           |
+|           | Social_versatility      |   0.286   |            |            |           |
+|           | Development_orientation |   0.227   |            |            |           |
+|           | Hireability             |   0.350   |            |            |           |
+| $` R^2 `$ | Integrity               |   0.063   |            |            |           |
+|           | Collegiality            |   0.097   |            |            |           |
+|           | Social_versatility      |   0.100   |            |            |           |
+|           | Development_orientation |   0.039   |            |            |           |
+|           | Hireability             |   0.111   |            |            |           |
+
+## Setup
+
+```bash
+uv sync --index-strategy unsafe-best-match
+```
 
 ## Modalities Extraction
 
