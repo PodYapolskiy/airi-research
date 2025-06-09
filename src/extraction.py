@@ -1,5 +1,6 @@
 import os
-from types import NoneType
+import subprocess
+from typing import List
 import cv2
 import mlflow
 import argparse
@@ -16,6 +17,7 @@ import whisper
 
 from utils import ensure_mlflow, ensure_paths
 
+NoneType = type(None)
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Extraction Argument Parser")
@@ -69,35 +71,26 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     # models
-    parser.add_argument("--video-model-device", type=str, default="cuda")
-    parser.add_argument("--audio-model-device", type=str, default="cpu")
-    parser.add_argument("--text-model-device", type=str, default="cuda")
+    parser.add_argument("--video-model-device", type=str, default="cpu")
+    # parser.add_argument("--audio-model-device", type=str, default="cpu")
+    parser.add_argument("--text-model-device", type=str, default="cpu")
 
     # extractions
-    parser.add_argument(
-        "--extract-video",
-        type=bool,
-        default=False,
-        action=argparse.BooleanOptionalAction,
-    )
-    parser.add_argument(
-        "--extract-audio",
-        type=bool,
-        default=False,
-        action=argparse.BooleanOptionalAction,
-    )
-    parser.add_argument(
-        "--extract-text",
-        type=bool,
-        default=False,
-        action=argparse.BooleanOptionalAction,
+    parser.add_argument("--extract-video", action='store_true')
+    parser.add_argument("--extract-audio", action='store_true')
+    parser.add_argument("--extract-text", action='store_true')
+
+    parser.set_defaults(
+        extract_video=False,
+        extract_audio=False,
+        extract_text=False
     )
 
     return parser.parse_args()
 
 
 def extract_video(
-    file_paths: list[Path],
+    file_paths: List[Path],
     preprocessed_dir_path: Path,
     mtcnn: MTCNN,
     image_size: int,
@@ -112,7 +105,7 @@ def extract_video(
         frames = [frame for frame in video.iter_frames()]
 
         batch_size = 128
-        cropped_frames: list[np.ndarray] = []
+        cropped_frames: List[np.ndarray] = []
         for idx in range(0, len(frames), batch_size):
             batch_frames = frames[idx : idx + batch_size]
 
@@ -121,7 +114,7 @@ def extract_video(
             # MTCNN does not hadle it and output shapes became inconsistent
             # so in case of error process each frame in batch individually
             try:
-                batch_cropped_frames: list[Float[Tensor, "channel height width"]] = (
+                batch_cropped_frames: List[Float[Tensor, "channel height width"]] = (
                     mtcnn(batch_frames)
                 )
 
@@ -146,7 +139,7 @@ def extract_video(
                     batch_cropped_frames.append(cropped_frame)
 
             # not a batch solution
-            # batch_cropped_frames: list[Float[Tensor, "channel height width"]] = []
+            # batch_cropped_frames: List[Float[Tensor, "channel height width"]] = []
             # for batch_frame in batch_frames:
             #     cropped_frame = mtcnn(batch_frame)
 
@@ -201,24 +194,24 @@ def extract_video(
 
 
 def extract_audio(
-    file_paths: list[Path],
+    file_paths: List[Path],
     preprocessed_dir_path: Path,
 ):
     for file_path in file_paths:
         rprint(f"{file_path = }")
 
-        if os.path.exists(preprocessed_dir_path / "audio" / f"{file_path.stem}.wav"):
-            continue
-
-        video = mp.VideoFileClip(file_path)
-        audio = video.audio
-
         out_path = preprocessed_dir_path / "audio" / f"{file_path.stem}.wav"
-        audio.write_audiofile(out_path)
+        if not os.path.exists(out_path):
+            rprint(f"Converting {file_path} to {out_path}")
+            subprocess.call(
+                args=["ffmpeg", "-y", "-i", str(file_path), str(out_path)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.STDOUT
+            )  
 
 
 def extract_text(
-    file_paths: list[Path], preprocessed_dir_path: Path, model: whisper.Whisper
+    file_paths: List[Path], preprocessed_dir_path: Path, model: whisper.Whisper
 ):
     # check if audio preprocessing has already been accomplished
     audio_files = sorted(preprocessed_dir_path.glob("audio/*.wav"))
