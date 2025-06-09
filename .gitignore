@@ -9,11 +9,11 @@ wheels/
 # Virtual environments
 .venv
 
-*.mp4
-*.mp3
-*.wav
-*.pt
-*.txt
+data/*
+
+notebooks/*.mp4
+notebooks/*.wav
 
 mlruns
 mlartifacts
+temp

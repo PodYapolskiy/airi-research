@@ -16,7 +16,7 @@ import torchaudio
 import transformers
 from transformers import Wav2Vec2ForXVector, Wav2Vec2Processor
 
-from utils import ensure_mlflow, ensure_paths  # , merge_meta
+from utils import ensure_mlflow, ensure_paths
 
 warnings.filterwarnings("ignore")
 
@@ -79,30 +79,42 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--text-model-device", type=str, default="cuda")
 
     # preprocessing
-    parser.add_argument(
-        "--preprocess-meta",
-        type=bool,
-        default=True,
-        action=argparse.BooleanOptionalAction,
+    parser.add_argument('--preprocess-meta', action='store_true')
+    parser.add_argument('--preprocess-video', action='store_true')
+    parser.add_argument('--preprocess-audio', action='store_true')
+    parser.add_argument('--preprocess-text', action='store_true')
+
+    parser.set_defaults(
+        preprocess_meta=False,
+        preprocess_video=False,
+        preprocess_audio=False,
+        preprocess_text=False
     )
-    parser.add_argument(
-        "--preprocess-video",
-        type=bool,
-        default=False,
-        action=argparse.BooleanOptionalAction,
-    )
-    parser.add_argument(
-        "--preprocess-audio",
-        type=bool,
-        default=False,
-        action=argparse.BooleanOptionalAction,
-    )
-    parser.add_argument(
-        "--preprocess-text",
-        type=bool,
-        default=False,
-        action=argparse.BooleanOptionalAction,
-    )
+
+    # parser.add_argument(
+    #     "--preprocess-meta",
+    #     type=bool,
+    #     default=False,
+    #     action=argparse.BooleanOptionalAction,
+    # )
+    # parser.add_argument(
+    #     "--preprocess-video",
+    #     type=bool,
+    #     default=False,
+    #     action=argparse.BooleanOptionalAction,
+    # )
+    # parser.add_argument(
+    #     "--preprocess-audio",
+    #     type=bool,
+    #     default=False,
+    #     action=argparse.BooleanOptionalAction,
+    # )
+    # parser.add_argument(
+    #     "--preprocess-text",
+    #     type=bool,
+    #     default=False,
+    #     action=argparse.BooleanOptionalAction,
+    # )
 
     return parser.parse_args()
 
@@ -159,20 +171,25 @@ def preprocess_audio(
     preprocessed_dir_path: Path,
     model: Wav2Vec2ForXVector,
     processor: Wav2Vec2Processor,
+    device: torch.device
 ):
+    model.eval()
     for audio_path in sorted(preprocessed_dir_path.glob("audio/*.wav")):
         rprint(f"{audio_path = }")
 
         waveform, sr = torchaudio.load(audio_path)
-        signal: Float[Tensor, "channels amplitudes"] = processor(  # noqa: F722
+        # waveform = torchaudio.functional.vad(waveform, sr)  # trim silence
+
+        signal: Float[Tensor, "channels amplitudes"] = processor(  # noqa: F722 # type: ignore
             waveform, sampling_rate=16000, return_tensors="pt"
         ).input_values.squeeze(0)
+        signal = signal.half().to(device)
 
         with torch.no_grad():
             outputs = model(signal)  # noqa: F722
 
         audio_features: Float[torch.Tensor, "channels features"] = (  # noqa: F722
-            outputs.embeddings
+            outputs.embeddings.detach().cpu()
         )
 
         torch.save(
@@ -272,8 +289,9 @@ def main():
             transformers.logging.set_verbosity_error()
 
             model_id = "facebook/wav2vec2-base"
-            model = Wav2Vec2ForXVector.from_pretrained(model_id, use_safetensors=True)
-            model = model.to(args.audio_model_device)
+            device = torch.device(args.audio_model_device)
+            model = Wav2Vec2ForXVector.from_pretrained(model_id, weights_only=True) # use_safetensors=True, 
+            model = model.half().to(device)
             model.eval()
             processor = Wav2Vec2Processor.from_pretrained(model_id)
 
@@ -281,11 +299,13 @@ def main():
                 preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
                 model=model,
                 processor=processor,
+                device=device,
             )
             preprocess_audio(
                 preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
                 model=model,
                 processor=processor,
+                device=device,
             )
 
             model.to("cpu")
