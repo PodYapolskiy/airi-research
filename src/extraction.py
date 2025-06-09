@@ -10,7 +10,6 @@ from rich import print as rprint
 
 import torch
 from torch import Tensor
-import moviepy as mp
 from jaxtyping import Float
 from facenet_pytorch import MTCNN
 import whisper
@@ -98,13 +97,21 @@ def extract_video(
     for file_path in file_paths:
         rprint(f"{file_path = }")
 
-        if os.path.exists(preprocessed_dir_path / "video" / f"{file_path.stem}.mp4"):
+        out_path = preprocessed_dir_path / "video" / f"{file_path.stem}.mp4"
+        if os.path.exists(out_path):
             continue
 
-        video = mp.VideoFileClip(file_path)
-        frames = [frame for frame in video.iter_frames()]
+        video = cv2.VideoCapture(str(file_path))
+        frames = []
+        while True:
+            ret, frame = video.read()
+            if not ret:
+                break
+            frames.append(frame)
+        video.release()
 
-        batch_size = 128
+        # TODO: not optimal for GPU
+        batch_size = 256
         cropped_frames: List[np.ndarray] = []
         for idx in range(0, len(frames), batch_size):
             batch_frames = frames[idx : idx + batch_size]
@@ -177,12 +184,11 @@ def extract_video(
         # save as video of face frames
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # MP4V
         frameSize = cropped_frames[0].shape[:2]
-        out_path = preprocessed_dir_path / "video" / f"{file_path.stem}.mp4"
 
         out = cv2.VideoWriter(
             filename=out_path,
             fourcc=fourcc,
-            fps=video.fps,
+            fps=video.get(cv2.CAP_PROP_FPS),
             frameSize=frameSize,
             isColor=True,
         )
@@ -259,9 +265,6 @@ def main():
             mlflow.log_param("video_train_size", len(train_file_paths))
             mlflow.log_param("video_val_size", len(val_file_paths))
 
-            # TODO: fix
-            # 549b8ef4fdf99b4ffa5fa0c9_q2_generic.mp4
-            #  ValueError: setting an array element with a sequence. The requested array has an inhomogeneous shape after 1 dimensions. The detected shape was (128,) + inhomogeneous part.
             mtcnn = MTCNN(
                 image_size=args.image_size,
                 min_face_size=args.min_face_size,
