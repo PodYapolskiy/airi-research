@@ -34,16 +34,16 @@ Models:
 
 |  Metric   | Label                   | Only Meta | Only Video | Only Audio | Only Text |
 | :-------: | :---------------------- | :-------: | :--------: | :--------: | :-------: |
-|    MSE    | Integrity               |   0.204   |            |            |           |
-|           | Collegiality            |   0.292   |            |            |           |
-|           | Social_versatility      |   0.286   |            |            |           |
-|           | Development_orientation |   0.227   |            |            |           |
-|           | Hireability             |   0.350   |            |            |           |
-| $` R^2 `$ | Integrity               |   0.063   |            |            |           |
-|           | Collegiality            |   0.097   |            |            |           |
-|           | Social_versatility      |   0.100   |            |            |           |
-|           | Development_orientation |   0.039   |            |            |           |
-|           | Hireability             |   0.111   |            |            |           |
+|    MSE    | Integrity               | **0.204** |   0.216    |   0.216    |   0.208   |
+|           | Collegiality            | **0.292** |   0.314    |   0.320    |   0.312   |
+|           | Social_versatility      | **0.286** |   0.298    |   0.312    |   0.303   |
+|           | Development_orientation |   0.227   | **0.225**  |   0.234    |   0.242   |
+|           | Hireability             | **0.350** |   0.374    |   0.390    |   0.365   |
+| $` R^2 `$ | Integrity               | **0.063** |   0.009    |   0.007    |   0.044   |
+|           | Collegiality            | **0.097** |   0.030    |   0.010    |   0.035   |
+|           | Social_versatility      | **0.100** |   0.060    |   0.016    |   0.044   |
+|           | Development_orientation |   0.039   | **0.046**  |   0.008    |  -0.026   |
+|           | Hireability             | **0.111** |   0.051    |   0.010    |   0.073   |
 
 ## Setup
 
