@@ -32,26 +32,27 @@ Models:
 
 #### Performance
 
-|  Metric   | Label                   | Only Meta | Only Video | Only Audio | Only Text |
-| :-------: | :---------------------- | :-------: | :--------: | :--------: | :-------: |
-|    MSE    | Integrity               | **0.204** |   0.216    |   0.216    |   0.208   |
-|           | Collegiality            | **0.292** |   0.314    |   0.320    |   0.312   |
-|           | Social_versatility      | **0.286** |   0.298    |   0.312    |   0.303   |
-|           | Development_orientation |   0.227   | **0.225**  |   0.234    |   0.242   |
-|           | Hireability             | **0.350** |   0.374    |   0.390    |   0.365   |
-| $` R^2 `$ | Integrity               | **0.063** |   0.009    |   0.007    |   0.044   |
-|           | Collegiality            | **0.097** |   0.030    |   0.010    |   0.035   |
-|           | Social_versatility      | **0.100** |   0.060    |   0.016    |   0.044   |
-|           | Development_orientation |   0.039   | **0.046**  |   0.008    |  -0.026   |
-|           | Hireability             | **0.111** |   0.051    |   0.010    |   0.073   |
+|  Metric   | Label                   |   Meta    | Video | Audio |  Text  | Meta Text (late fusion) | Meta Video Audio Text (late fusion) |
+| :-------: | :---------------------- | :-------: | :---: | :---: | :----: | :---------------------: | :---------------------------------: |
+|    MSE    | Integrity               | **0.204** | 0.216 | 0.216 | 0.208  |          0.212          |                0.211                |
+|           | Collegiality            | **0.292** | 0.314 | 0.320 | 0.312  |          0.349          |                0.324                |
+|           | Social_versatility      | **0.286** | 0.298 | 0.312 | 0.303  |          0.330          |                0.300                |
+|           | Development_orientation |   0.227   | 0.225 | 0.234 | 0.242  |          0.243          |              **0.223**              |
+|           | Hireability             | **0.350** | 0.374 | 0.390 | 0.365  |          0.395          |                0.363                |
+|           |                         |           |       |       |        |                         |                                     |
+| $` R^2 `$ | Integrity               | **0.063** | 0.009 | 0.007 | 0.044  |          0.029          |                0.031                |
+|           | Collegiality            | **0.097** | 0.030 | 0.010 | 0.035  |         -0.077          |                0.000                |
+|           | Social_versatility      | **0.100** | 0.060 | 0.016 | 0.044  |         -0.039          |                0.580                |
+|           | Development_orientation |   0.039   | 0.046 | 0.008 | -0.026 |         -0.030          |              **0.054**              |
+|           | Hireability             | **0.111** | 0.051 | 0.010 | 0.073  |         -0.002          |                0.079                |
 
 ## Setup
 
 ```bash
-uv sync --index-strategy unsafe-best-match
+uv sync
 ```
 
-## Modalities Extraction
+## Extraction
 
 For $` \forall `$ \*.mp4:
 
@@ -66,17 +67,7 @@ uv run src/extraction.py
 ## Preprocessing
 
 ```bash
-uv run src/preprocess.py \
-#    --data-dir data \
-#    --train-dir train_data \
-#    --val_data val_data \
-#    --preprocessed-train-dir preprocessed_train_data \
-#    --preprocessed-val-dir preprocessed_val_data \
-#    --train-csv train_data.csv \
-#    --val-csv val_data.csv \
-#    --image-size 224 \
-#    --min-face-size 50 \
-#    --custom-preprocess 0 \
+uv run src/preprocess.py
 ```
 
 ## Links

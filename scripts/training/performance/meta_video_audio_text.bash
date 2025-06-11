@@ -7,6 +7,12 @@ uv run src/train_performance.py \
     --device cuda \
     --epochs 100 \
     --lr 0.001 \
-    --trait "Hireability" \
+    --trait "Development_orientation" \
+    --with-meta \
+    --with-video \
     --with-audio \
-    --audio-dim 512
+    --with-text \
+    --meta-dim 13 \
+    --video-dim 1280 \
+    --audio-dim 512 \
+    --text-dim 1024
