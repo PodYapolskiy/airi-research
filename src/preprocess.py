@@ -1,21 +1,22 @@
-import argparse
 import os
+import argparse
 import warnings
 from pathlib import Path
-from jaxtyping import Float
-import pandas as pd
 from rich import print as rprint
 
-from sklearn.preprocessing import MinMaxScaler
-import torch
-from torch import Tensor
 import mlflow
 import numpy as np
-import moviepy as mp
-from emotiefflib.facial_analysis import EmotiEffLibRecognizer, EmotiEffLibRecognizerBase
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+
+import torch
+from torch import Tensor
+import torch.nn.functional as F
+from jaxtyping import Float
 import torchaudio
 import transformers
 from transformers import Wav2Vec2ForXVector, Wav2Vec2Processor
+from transformers import AutoModel, AutoTokenizer
 
 from utils import ensure_mlflow, ensure_paths
 
@@ -75,21 +76,21 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--custom-preprocess", type=bool, default=False)
 
     # models
-    parser.add_argument("--video-model-device", type=str, default="cuda")
+    parser.add_argument("--video-model-device", type=str, default="cpu")
     parser.add_argument("--audio-model-device", type=str, default="cpu")
-    parser.add_argument("--text-model-device", type=str, default="cuda")
+    parser.add_argument("--text-model-device", type=str, default="cpu")
 
     # preprocessing
-    parser.add_argument('--preprocess-meta', action='store_true')
-    parser.add_argument('--preprocess-video', action='store_true')
-    parser.add_argument('--preprocess-audio', action='store_true')
-    parser.add_argument('--preprocess-text', action='store_true')
+    parser.add_argument("--preprocess-meta", action="store_true")
+    parser.add_argument("--preprocess-video", action="store_true")
+    parser.add_argument("--preprocess-audio", action="store_true")
+    parser.add_argument("--preprocess-text", action="store_true")
 
     parser.set_defaults(
         preprocess_meta=False,
         preprocess_video=False,
         preprocess_audio=False,
-        preprocess_text=False
+        preprocess_text=False,
     )
 
     # parser.add_argument(
@@ -140,7 +141,7 @@ def preprocess_meta(
 
 def preprocess_video(
     preprocessed_dir_path: Path,
-    emoti_eff: EmotiEffLibRecognizerBase,
+    emoti_eff,
 ):
     for video_path in sorted(preprocessed_dir_path.glob("video/*.mp4")):
         rprint(f"{video_path = }")
@@ -172,7 +173,7 @@ def preprocess_audio(
     preprocessed_dir_path: Path,
     model: Wav2Vec2ForXVector,
     processor: Wav2Vec2Processor,
-    device: torch.device
+    device: torch.device,
 ):
     model.eval()
     for audio_path in sorted(preprocessed_dir_path.glob("audio/*.wav")):
@@ -184,9 +185,11 @@ def preprocess_audio(
         waveform, sr = torchaudio.load(audio_path)
         # waveform = torchaudio.functional.vad(waveform, sr)  # trim silence
 
-        signal: Float[Tensor, "channels amplitudes"] = processor(  # noqa: F722 # type: ignore
-            waveform, sampling_rate=16000, return_tensors="pt"
-        ).input_values.squeeze(0)
+        signal: Float[Tensor, "channels amplitudes"] = (
+            processor(  # noqa: F722 # type: ignore
+                waveform, sampling_rate=16000, return_tensors="pt"
+            ).input_values.squeeze(0)
+        )
         signal = signal.half().to(device)
 
         try:
@@ -210,8 +213,49 @@ def preprocess_audio(
         )
 
 
-def preprocess_text():
-    pass
+def preprocess_text(
+    preprocessed_dir_path: Path,
+    model: AutoModel,
+    processor: AutoTokenizer,
+):
+    def mean_pooling(model_output, attention_mask):
+        token_embeddings = model_output[0]
+        input_mask_expanded = (
+            attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        )
+        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(
+            input_mask_expanded.sum(1), min=1e-9
+        )
+
+    max_length = 8192
+    for text_path in sorted(preprocessed_dir_path.glob("text/*.txt")):
+        rprint(f"{text_path = }")
+
+        out_path = preprocessed_dir_path / "text" / f"{text_path.stem}.pt"
+        if os.path.exists(out_path):
+            continue
+
+        with open(text_path, "r") as f:
+            text = f.read()
+
+        inputs = processor(
+            text,
+            padding=True,
+            truncation=True,
+            max_length=max_length,
+            return_tensors="pt",
+        ).to(model.device)
+
+        with torch.no_grad():
+            outputs = model(**inputs)
+
+        embeddings = mean_pooling(outputs, inputs["attention_mask"])
+        embeddings = F.normalize(embeddings, p=2, dim=1)
+
+        torch.save(
+            obj=embeddings.squeeze(0),  # 1024
+            f=out_path,
+        )
 
 
 def main():
@@ -268,6 +312,8 @@ def main():
     # Video #
     #########
     if args.preprocess_video:
+        from emotiefflib.facial_analysis import EmotiEffLibRecognizer
+
         with mlflow.start_run(run_name="Video Preprocessing"):
             emoti_eff = EmotiEffLibRecognizer(
                 model_name="enet_b0_8_best_vgaf",
@@ -302,7 +348,9 @@ def main():
 
             model_id = "facebook/wav2vec2-base"
             device = torch.device(args.audio_model_device)
-            model = Wav2Vec2ForXVector.from_pretrained(model_id, weights_only=True) # use_safetensors=True, 
+            model = Wav2Vec2ForXVector.from_pretrained(
+                model_id, weights_only=True
+            )  # use_safetensors=True,
             model = model.half().to(device)
             model.eval()
             processor = Wav2Vec2Processor.from_pretrained(model_id)
@@ -328,7 +376,29 @@ def main():
     ########
     if args.preprocess_text:
         with mlflow.start_run(run_name="Text Preprocessing"):
-            pass
+            # statistics of texts
+            for text_path in sorted(PREPROCESSED_TRAIN_DIR_PATH.glob("text/*.txt")):
+                with open(text_path, "r") as f:
+                    text = f.read()
+                    mlflow.log_metric("text_len", len(text))
+
+            model_id = "jinaai/jina-embeddings-v3"  # "Qwen/Qwen3-Embedding-0.6B"
+            model = AutoModel.from_pretrained(
+                model_id, use_safetensors=True, trust_remote_code=True
+            ).to(args.text_model_device)
+            model.eval()
+            tokenizer = AutoTokenizer.from_pretrained(model_id, padding_side="left")
+
+            preprocess_text(
+                preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
+                model=model,
+                processor=tokenizer,
+            )
+            preprocess_text(
+                preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
+                model=model,
+                processor=tokenizer,
+            )
 
 
 if __name__ == "__main__":
