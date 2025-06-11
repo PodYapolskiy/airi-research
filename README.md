@@ -6,23 +6,29 @@
 
 ## Metrics
 
+- MSE - the less, better
+- $`R^2`$ - closer to 1 is better
+
+Models:
+
 - [Only Meta](./notebooks/dummy.ipynb) - ridge regression on `["age", "work_experience", "gender", "education"]`
-- [Only Video](.) - ...
-- [Only Audio](./src/train_audio_personality.py) - OnlyNet
-- [Only Text](./src/train_text_personality.py) - OnlyNet
+- [Only Video](./src/train_video_personality.py) - OnlyNet on `[embedding (1280)]`
+- [Only Audio](./src/train_audio_personality.py) - OnlyNet on `[embedding (512)]`
+- [Only Text](./src/train_text_personality.py) - OnlyNet on `[embedding (1024)]`
 
 #### Personality
 
 |  Metric   | Label             | Only Meta | Only Video | Only Audio | Only Text |
 | :-------: | :---------------- | :-------: | :--------: | :--------: | :-------: |
-|    MSE    | Honesty-Humility  |   0.185   |            |   0.190    |   0.180   |
-|           | Extraversion      |   0.282   |            |   0.278    |   0.219   |
-|           | Agreeableness     |   0.216   |            |   0.218    |   0.225   |
-|           | Conscientiousness |   0.179   |            |   0.189    |   0.215   |
-| $` R^2 `$ | Honesty-Humility  |   0.022   |            |   -0.002   |   0.051   |
-|           | Extraversion      |  -0.001   |            |   0.013    |   0.224   |
-|           | Agreeableness     |   0.014   |            |   0.002    |  -0.030   |
-|           | Conscientiousness |   0.052   |            |   -0.001   |  -0.140   |
+|    MSE    | Honesty-Humility  |   0.185   |   0.185    |   0.190    | **0.180** |
+|           | Extraversion      |   0.282   |   0.288    |   0.278    | **0.219** |
+|           | Agreeableness     | **0.216** |   0.252    |   0.218    |   0.225   |
+|           | Conscientiousness | **0.179** |   0.234    |   0.189    |   0.215   |
+|           |                   |           |            |            |           |
+| $` R^2 `$ | Honesty-Humility  |   0.022   |   0.023    |   -0.002   | **0.051** |
+|           | Extraversion      |  -0.001   |   -0.021   |   0.013    | **0.224** |
+|           | Agreeableness     | **0.014** |   -0.151   |   0.002    |  -0.030   |
+|           | Conscientiousness | **0.052** |   -0.240   |   -0.001   |  -0.140   |
 
 #### Performance
 
