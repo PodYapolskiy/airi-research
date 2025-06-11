@@ -2,6 +2,7 @@ import os
 import argparse
 import warnings
 from pathlib import Path
+import cv2
 from rich import print as rprint
 
 import mlflow
@@ -143,30 +144,56 @@ def preprocess_video(
     preprocessed_dir_path: Path,
     emoti_eff,
 ):
-    for video_path in sorted(preprocessed_dir_path.glob("video/*.mp4")):
+    for video_path in sorted(preprocessed_dir_path.glob("video/*.png")):
         rprint(f"{video_path = }")
 
-        video = mp.VideoFileClip(video_path)
-        cropped_frames: list[np.ndarray] = [frame for frame in video.iter_frames()]
-        video.close()
+        out_path = preprocessed_dir_path / "video" / f"{video_path.stem}.pt"
+        if os.path.exists(out_path):
+            continue
 
-        # apply emotiefflib to extract embedding of each frame's face
-        batch_size = 32
-        features: list[np.ndarray] = []
-        for i in range(0, len(cropped_frames), batch_size):
-            batch = cropped_frames[i : i + batch_size]
-            batch_features = emoti_eff.extract_features(batch)
-            features.extend(batch_features)
+        video = cv2.imread(str(video_path))
+        # video = cv2.cvtColor(video, cv2.COLOR_BGR2RGB)
 
-        # boost performance of conversions list[np.ndarray] -> np.ndarray
-        features = np.array(features)
-        video_features: Float[torch.Tensor, "frames features"] = (  # noqa: F722
-            torch.from_numpy(features)
-        )
+        video_features = emoti_eff.extract_features(video)
+        video_features = torch.from_numpy(video_features)
+        # rprint(video_features.size())
+
         torch.save(
-            obj=video_features,
+            obj=video_features.squeeze(0),  # 1280
             f=preprocessed_dir_path / "video" / f"{video_path.stem}.pt",
         )
+
+        # video = cv2.VideoCapture(str(video_path))
+        # frames = []
+        # while True:
+        #     ret, frame = video.read()
+        #     if not ret:
+        #         break
+        #     frames.append(frame)
+        # fps = video.get(cv2.CAP_PROP_FPS)
+        # video.release()
+
+        # cropped_frames: list[np.ndarray] = [frame for frame in video.iter_frames()]
+        # video.close()
+
+        # # apply emotiefflib to extract embedding of each frame's face
+        # batch_size = 32
+        # features: list[np.ndarray] = []
+        # for i in range(0, len(cropped_frames), batch_size):
+        #     batch = cropped_frames[i : i + batch_size]
+        #     batch_features = emoti_eff.extract_features(batch)
+        #     features.extend(batch_features)
+
+        # # boost performance of conversions list[np.ndarray] -> np.ndarray
+        # features = np.array(features)
+        # video_features: Float[torch.Tensor, "frames features"] = (  # noqa: F722
+        #     torch.from_numpy(features)
+        # )
+
+        # torch.save(
+        #     obj=video_features,
+        #     f=preprocessed_dir_path / "video" / f"{video_path.stem}.pt",
+        # )
 
 
 def preprocess_audio(

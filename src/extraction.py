@@ -5,10 +5,13 @@ import cv2
 import mlflow
 import argparse
 from pathlib import Path
+
+# import numpy as np
 from rich import print as rprint
 
 import torch
-from torch import Tensor
+
+# from torch import Tensor
 from facenet_pytorch import MTCNN
 import whisper
 
@@ -74,14 +77,10 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--text-model-device", type=str, default="cpu")
 
     # extractions
-    parser.add_argument("--extract-video", action='store_true')
-    parser.add_argument("--extract-audio", action='store_true')
-    parser.add_argument("--extract-text", action='store_true')
-    parser.set_defaults(
-        extract_video=False,
-        extract_audio=False,
-        extract_text=False
-    )
+    parser.add_argument("--extract-video", action="store_true")
+    parser.add_argument("--extract-audio", action="store_true")
+    parser.add_argument("--extract-text", action="store_true")
+    parser.set_defaults(extract_video=False, extract_audio=False, extract_text=False)
 
     return parser.parse_args()
 
@@ -92,10 +91,11 @@ def extract_video(
     mtcnn: MTCNN,
     image_size: int,
 ):
+    no_faces = 0
     for file_path in file_paths:
         rprint(f"{file_path = }")
 
-        out_path = preprocessed_dir_path / "video" / f"{file_path.stem}.mp4"
+        out_path = preprocessed_dir_path / "video" / f"{file_path.stem}.png"
         if os.path.exists(out_path):
             continue
 
@@ -106,65 +106,98 @@ def extract_video(
             if not ret:
                 break
             frames.append(frame)
-        fps = video.get(cv2.CAP_PROP_FPS)
+        # fps = video.get(cv2.CAP_PROP_FPS)
         video.release()
 
-
         # utilize GPU and use MTCNN the most efficiently
-        def process_frames_recursively(frames) -> List[Tensor]:
-            try:
-                if len(frames) <= 1:
-                    return []
+        # def process_frames_recursively(frames: List[np.ndarray]) -> List[Tensor]:
+        #     try:
+        #         if len(frames) <= 1:
+        #             return []
 
-                cropped_frames: List[Tensor] = mtcnn(frames)
-                if all([isinstance(cropped_frame, NoneType) for cropped_frame in cropped_frames]):
-                    cropped_frames = [torch.zeros(3, image_size, image_size)] * len(cropped_frames)
+        #         cropped_frames: List[Tensor] = mtcnn(frames)
+        #         if all(
+        #             [
+        #                 isinstance(cropped_frame, NoneType)
+        #                 for cropped_frame in cropped_frames
+        #             ]
+        #         ):
+        #             cropped_frames = [torch.zeros(3, image_size, image_size)] * len(
+        #                 cropped_frames
+        #             )
 
-                return cropped_frames
-            except (torch.OutOfMemoryError, ValueError):                
-                mid = len(frames) // 2
-                
-                left_cropped = process_frames_recursively(frames[:mid])
-                right_cropped = process_frames_recursively(frames[mid:])
-                
-                return left_cropped + right_cropped
+        #         return cropped_frames
+        #     except (torch.OutOfMemoryError, ValueError):
+        #         mid = len(frames) // 2
 
+        #         left_cropped = process_frames_recursively(frames[:mid])
+        #         right_cropped = process_frames_recursively(frames[mid:])
 
-        cropped_frames = process_frames_recursively(frames)
+        #         return left_cropped + right_cropped
+        # cropped_frames = process_frames_recursively(frames)
+        # TODO: fix this crutch
+        # ensure equal length after cropping
+        # if len(frames) != len(cropped_frames):
+        #     rprint(len(frames), len(cropped_frames))
+        #     # assert len(frames) == len(cropped_frames)
 
+        # if len(cropped_frames) == 0:
+        #     cropped_frames = [torch.zeros(3, image_size, image_size)]
         # ensure all frames are cropped and tensors
-        assert all(
-            [
-                isinstance(cropped_frame, Tensor)
-                and cropped_frame.shape == (3, image_size, image_size)
-                for cropped_frame in cropped_frames
-            ]
-        )
-
+        # assert all(
+        #     [
+        #         isinstance(cropped_frame, Tensor)
+        #         and cropped_frame.shape == (3, image_size, image_size)
+        #         for cropped_frame in cropped_frames
+        #     ]
+        # )
         # prepare for storing as video for furhter emotieffnet usage
-        processed_cropped_frames = []
-        for cropped_frame in cropped_frames:
-            cropped_frame = cropped_frame.permute(1, 2, 0)
-            cropped_frame = (cropped_frame + 1) / 2 * 255  # from [-1, 1] to [0, 255]
-            cropped_frame = cropped_frame.clamp(0, 255).to(torch.uint8)
-            processed_cropped_frames.append(cropped_frame.numpy())
-
+        # processed_cropped_frames = []
+        # for cropped_frame in cropped_frames:
+        #     cropped_frame = cropped_frame.permute(1, 2, 0)
+        #     cropped_frame = (cropped_frame + 1) / 2 * 255  # from [-1, 1] to [0, 255]
+        #     cropped_frame = cropped_frame.clamp(0, 255).to(torch.uint8)
+        #     processed_cropped_frames.append(cropped_frame.numpy())
         # save as video of face frames
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # MP4V
-        frameSize = cropped_frames[0].shape[:2]
+        # fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # MP4V
+        # frameSize = (image_size, image_size)  # cropped_frames[0].shape[:2]
 
-        out = cv2.VideoWriter(
-            filename=out_path,
-            fourcc=fourcc,
-            fps=fps,
-            frameSize=frameSize,
-            isColor=True,
-        )
+        # out = cv2.VideoWriter(
+        #     filename=out_path,
+        #     fourcc=fourcc,
+        #     fps=fps,
+        #     frameSize=frameSize,
+        #     isColor=True,
+        # )
 
-        for frame in processed_cropped_frames:
-            out.write(frame)
+        # for frame in processed_cropped_frames:
+        #     out.write(frame)
 
-        out.release()
+        # out.release()
+
+        ##################################
+        # PICK THE FIRST RECOGNIZED FACE #
+        ##################################
+        cropped_frame = None
+        for frame in frames:
+            cropped_frame = mtcnn(frame)
+            if not isinstance(cropped_frame, NoneType):
+                break
+
+        # case when camera is off and no faces are recognized
+        if isinstance(cropped_frame, NoneType):
+            cropped_frame = torch.zeros(3, image_size, image_size)
+            no_faces += 1
+
+        assert cropped_frame.shape == (3, image_size, image_size)
+
+        cropped_frame = cropped_frame.permute(1, 2, 0)
+        cropped_frame = (cropped_frame + 1) / 2 * 255  # from [-1, 1] to [0, 255]
+        cropped_frame = cropped_frame.clamp(0, 255).to(torch.uint8)
+
+        cv2.imwrite(str(out_path), cropped_frame.numpy())
+
+    mlflow.log_metric("no_faces", no_faces)
 
 
 def extract_audio(
@@ -180,8 +213,8 @@ def extract_audio(
             subprocess.call(
                 args=["ffmpeg", "-y", "-i", str(file_path), str(out_path)],
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT
-            )  
+                stderr=subprocess.STDOUT,
+            )
 
 
 def extract_text(
