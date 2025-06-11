@@ -8,21 +8,21 @@
 
 - [Only Meta](./notebooks/dummy.ipynb) - ridge regression on `["age", "work_experience", "gender", "education"]`
 - [Only Video](.) - ...
-- [Only Audio](.) - ...
-- [Only Text](.) - ...
+- [Only Audio](./src/train_audio_personality.py) - OnlyNet
+- [Only Text](./src/train_text_personality.py) - OnlyNet
 
 #### Personality
 
 |  Metric   | Label             | Only Meta | Only Video | Only Audio | Only Text |
 | :-------: | :---------------- | :-------: | :--------: | :--------: | :-------: |
-|    MSE    | Honesty-Humility  |   0.185   |            |   0.215    |           |
-|           | Extraversion      |   0.282   |            |   0.278    |           |
-|           | Agreeableness     |   0.216   |            |   0.219    |           |
-|           | Conscientiousness |   0.179   |            |   0.200    |           |
-| $` R^2 `$ | Honesty-Humility  |   0.022   |            |   -0.133   |           |
-|           | Extraversion      |  -0.001   |            |   0.012    |           |
-|           | Agreeableness     |   0.014   |            |   0.000    |           |
-|           | Conscientiousness |   0.052   |            |   -0.063   |           |
+|    MSE    | Honesty-Humility  |   0.185   |            |   0.190    |   0.180   |
+|           | Extraversion      |   0.282   |            |   0.278    |   0.219   |
+|           | Agreeableness     |   0.216   |            |   0.218    |   0.225   |
+|           | Conscientiousness |   0.179   |            |   0.189    |   0.215   |
+| $` R^2 `$ | Honesty-Humility  |   0.022   |            |   -0.002   |   0.051   |
+|           | Extraversion      |  -0.001   |            |   0.013    |   0.224   |
+|           | Agreeableness     |   0.014   |            |   0.002    |  -0.030   |
+|           | Conscientiousness |   0.052   |            |   -0.001   |  -0.140   |
 
 #### Performance
 

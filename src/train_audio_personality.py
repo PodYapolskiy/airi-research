@@ -146,7 +146,7 @@ def main():
     ], f"Invalid personality trait: {args.trait}"
 
     ensure_mlflow()
-    mlflow.set_experiment(f"Training Personality {args.trait}")
+    mlflow.set_experiment(f"Training Personality {args.trait} Audio")
     ensure_paths(args.data_dir, args)
     DATA_DIR_PATH = Path(args.data_dir)
     PREPROCESSED_TRAIN_DIR_PATH = DATA_DIR_PATH / args.preprocessed_train_dir
@@ -158,7 +158,7 @@ def main():
         train_csv=args.train_csv,
         val_csv=args.val_csv,
         batch_size=args.batch_size,
-        num_workers=1, # args.num_workers,
+        num_workers=args.num_workers,
         personality_trait=args.trait,
     )
     mlflow.log_params(
@@ -169,7 +169,9 @@ def main():
     )
 
     device = torch.device(
-        "cuda:0" if torch.cuda.is_available() and args.device.startswith("cuda") == "cuda" else "cpu"
+        "cuda:0"
+        if torch.cuda.is_available() and args.device.startswith("cuda") == "cuda"
+        else "cpu"
     )
     model = OnlyNet(dim=args.only_dim).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
