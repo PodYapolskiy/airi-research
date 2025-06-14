@@ -18,17 +18,17 @@ Models:
 
 #### Personality
 
-|  Metric   | Label             | Only Meta | Only Video | Only Audio | Only Text |
-| :-------: | :---------------- | :-------: | :--------: | :--------: | :-------: |
-|    MSE    | Honesty-Humility  |   0.185   |   0.185    |   0.190    | **0.180** |
-|           | Extraversion      |   0.282   |   0.288    |   0.278    | **0.219** |
-|           | Agreeableness     | **0.216** |   0.252    |   0.218    |   0.225   |
-|           | Conscientiousness | **0.179** |   0.234    |   0.189    |   0.215   |
-|           |                   |           |            |            |           |
-| $` R^2 `$ | Honesty-Humility  |   0.022   |   0.023    |   -0.002   | **0.051** |
-|           | Extraversion      |  -0.001   |   -0.021   |   0.013    | **0.224** |
-|           | Agreeableness     | **0.014** |   -0.151   |   0.002    |  -0.030   |
-|           | Conscientiousness | **0.052** |   -0.240   |   -0.001   |  -0.140   |
+|  Metric   | Label             | Only Meta | Only Video | Only Audio | Only Text | Meta Text (late fusion) | Meta Video Audio Text (late fusion) |
+| :-------: | :---------------- | :-------: | :--------: | :--------: | :-------: | :---------------------: | :---------------------------------: |
+|    MSE    | Honesty-Humility  |   0.185   |   0.185    |   0.190    | **0.180** |          0.201          |                0.200                |
+|           | Extraversion      |   0.282   |   0.288    |   0.278    | **0.219** |          0.242          |                0.244                |
+|           | Agreeableness     | **0.216** |   0.252    |   0.218    |   0.225   |          0.217          |                0.224                |
+|           | Conscientiousness | **0.179** |   0.234    |   0.189    |   0.215   |          0.224          |                0.221                |
+|           |                   |           |            |            |           |                         |                                     |
+| $` R^2 `$ | Honesty-Humility  |   0.022   |   0.023    |   -0.002   | **0.051** |         -0.063          |               -0.057                |
+|           | Extraversion      |  -0.001   |   -0.021   |   0.013    | **0.224** |          0.141          |                0.133                |
+|           | Agreeableness     | **0.014** |   -0.151   |   0.002    |  -0.030   |          0.009          |               -0.022                |
+|           | Conscientiousness | **0.052** |   -0.240   |   -0.001   |  -0.140   |         -0.191          |               -0.176                |
 
 #### Performance
 

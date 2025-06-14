@@ -204,3 +204,8 @@ class PerformanceNet(nn.Module):
             x = (x_meta + x_video + x_audio + x_text) / self.modalities_count
 
         return x
+
+
+class PersonalityNet(PerformanceNet):
+    def __init__(self, **kwargs):
+        super(PersonalityNet, self).__init__(**kwargs)

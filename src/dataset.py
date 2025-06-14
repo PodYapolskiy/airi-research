@@ -36,7 +36,7 @@ class PersonalityDataset(Dataset):
         self,
         df: pd.DataFrame,
         preprocessed_dir_path: Path,
-        personality_trait: str,
+        trait: str,
     ) -> None:
         """
         Initialize the dataset.
@@ -44,7 +44,7 @@ class PersonalityDataset(Dataset):
         Args:
             df (pd.DataFrame): DataFrame with metadata and labels
             preprocessed_dir_path (Path): Path to the directory containing embeddings
-            personality_trait (str): The personality trait to predict
+            trait (str): The personality trait to predict
         """
         personality_labels = [
             "Honesty-Humility",
@@ -52,9 +52,7 @@ class PersonalityDataset(Dataset):
             "Agreeableness",
             "Conscientiousness",
         ]
-        assert (
-            personality_trait in personality_labels
-        ), f"Invalid personality trait: {personality_trait}"
+        assert trait in personality_labels, f"Invalid personality trait: {trait}"
 
         self.video_paths: list[str] = []
         self.audio_paths: list[str] = []
@@ -71,7 +69,7 @@ class PersonalityDataset(Dataset):
         ]
 
         for _, row in df.iterrows():
-            postfix = f"_q{personality_labels.index(personality_trait)+3}_personality"
+            postfix = f"_q{personality_labels.index(trait)+3}_personality"
 
             video_path = preprocessed_dir_path / "video" / f"{row['id']}{postfix}.pt"
             audio_path = preprocessed_dir_path / "audio" / f"{row['id']}{postfix}.pt"
@@ -81,7 +79,7 @@ class PersonalityDataset(Dataset):
             self.audio_paths.append(str(audio_path))
             self.text_paths.append(str(text_path))
             self.features.append(row[features_columns].to_list())
-            self.labels.append(row[personality_trait])
+            self.labels.append(row[trait])
 
         # Make sure that all modalities and feature lists have the same length
         assert (
@@ -226,7 +224,7 @@ def get_personality_dataloaders(
     preprocessed_val_dir: Path,
     train_csv: str,
     val_csv: str,
-    personality_trait: str,
+    trait: str,
     batch_size: int = 32,
     num_workers: int = 4,
 ) -> Tuple[DataLoader, DataLoader]:
@@ -249,12 +247,12 @@ def get_personality_dataloaders(
     train_dataset = PersonalityDataset(
         df=df_train,
         preprocessed_dir_path=preprocessed_train_dir,
-        personality_trait=personality_trait,
+        trait=trait,
     )
     val_dataset = PersonalityDataset(
         df=df_val,
         preprocessed_dir_path=preprocessed_val_dir,
-        personality_trait=personality_trait,
+        trait=trait,
     )
 
     train_dataloader = DataLoader(
