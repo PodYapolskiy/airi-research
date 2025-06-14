@@ -12,7 +12,4 @@ uv run src/train_performance.py \
     --with-video \
     --with-audio \
     --with-text \
-    --meta-dim 13 \
-    --video-dim 1280 \
-    --audio-dim 512 \
-    --text-dim 1024
+    --fusion "early"

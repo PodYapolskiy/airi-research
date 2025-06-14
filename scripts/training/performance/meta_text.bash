@@ -10,3 +10,4 @@ uv run src/train_performance.py \
     --trait "..." \
     --with-meta \
     --with-text \
+    --fusion "early"
