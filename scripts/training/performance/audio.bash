@@ -7,6 +7,5 @@ uv run src/train_performance.py \
     --device cuda \
     --epochs 100 \
     --lr 0.001 \
-    --trait "Hireability" \
+    --trait "..." \
     --with-audio \
-    --audio-dim 512

@@ -7,5 +7,5 @@ uv run src/train_video_personality.py \
     --device cuda \
     --epochs 100 \
     --lr 0.001 \
-    --trait "Agreeableness" \
-    --only-dim 1280
+    --trait "..." \
+    --with-video

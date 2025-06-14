@@ -7,5 +7,5 @@ uv run src/train_text_personality.py \
     --device cuda \
     --epochs 100 \
     --lr 0.001 \
-    --trait "Conscientiousness" \
-    --only-dim 1024
+    --trait "..." \
+    --with-text

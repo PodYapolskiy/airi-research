@@ -7,6 +7,6 @@ uv run src/train_personality.py \
     --device cuda \
     --epochs 100 \
     --lr 0.001 \
-    --trait "Conscientiousness" \
+    --trait "..." \
     --with-meta \
     --with-text

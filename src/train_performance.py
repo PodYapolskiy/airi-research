@@ -181,6 +181,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--audio-dim", type=int, default=512)
     parser.add_argument("--text-dim", type=int, default=1024)
 
+    parser.add_argument("--fusion", type=str, default="late", choices=["early", "late"])
+
     return parser.parse_args()
 
 
@@ -213,7 +215,13 @@ def main():
         run_name += ["Audio"]
     if args.with_text:
         run_name += ["Text"]
-    run_name += ["(late fusion)"]
+
+    if args.fusion == "early":
+        run_name += ["(early fusion)"]
+    elif args.fusion == "late":
+        run_name += ["(late fusion)"]
+    else:
+        raise ValueError(f"Invalid fusion strategy: {args.fusion}")
     run_name = " | ".join(run_name)
 
     with mlflow.start_run(run_name=run_name):

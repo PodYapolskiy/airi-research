@@ -7,6 +7,5 @@ uv run src/train_performance.py \
     --device cuda \
     --epochs 100 \
     --lr 0.001 \
-    --trait "Hireability" \
-    --with-video \
-    --video-dim 1280
+    --trait "..." \
+    --with-video

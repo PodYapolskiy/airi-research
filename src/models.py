@@ -178,10 +178,10 @@ class PerformanceNet(nn.Module):
 
     def forward(
         self,
-        meta_embedding: Float[Tensor, "..."] | None,
-        video_embedding: Float[Tensor, "..."] | None,
-        audio_embedding: Float[Tensor, "..."] | None,
-        text_embedding: Float[Tensor, "..."] | None,
+        meta_embedding: Float[Tensor, "batch meta_dim"] | None,  # noqa: F722
+        video_embedding: Float[Tensor, "batch video_dim"] | None,  # noqa: F722
+        audio_embedding: Float[Tensor, "batch audio_dim"] | None,  # noqa: F722
+        text_embedding: Float[Tensor, "batch text_dim"] | None,  # noqa: F722
     ):
         if self.fusion_strategy == "early":
             embeddings = []
@@ -193,7 +193,7 @@ class PerformanceNet(nn.Module):
                 embeddings.append(audio_embedding)
             if self.with_text:
                 embeddings.append(text_embedding)
-            x_concat = torch.concat(embeddings, dim=0)
+            x_concat = torch.concat(embeddings, dim=1)
             x = self.net(x_concat)
 
         elif self.fusion_strategy == "late":
