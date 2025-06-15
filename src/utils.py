@@ -112,6 +112,21 @@ def parse_arguments(description: str) -> argparse.Namespace:
     return parser.parse_args()
 
 
+def get_name(id: int) -> str:
+    name = ""
+    if id >= 0 and id < 10:
+        name = "0000" + str(id)
+    elif id >= 10 and id < 100:
+        name = "000" + str(id)
+    elif id >= 100 and id < 1000:
+        name = "00" + str(id)
+    elif id >= 1000 and id < 10000:
+        name = "0" + str(id)
+    else:
+        name = str(id)
+    return name
+
+
 # def merge_meta(args: argparse.Namespace) -> tuple[pd.DataFrame, pd.DataFrame]:
 #     DATA_DIR_PATH = Path(args.data_dir)
 #     TRAIN_DIR_PATH = DATA_DIR_PATH / args.train_dir
