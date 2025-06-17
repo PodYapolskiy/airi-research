@@ -12,10 +12,13 @@ from sklearn.preprocessing import MinMaxScaler
 
 import torch
 from torch import Tensor
+from einops import reduce
 import torch.nn.functional as F
 from jaxtyping import Float
 import torchaudio
+from tqdm import tqdm
 import transformers
+from emotiefflib.facial_analysis import EmotiEffLibRecognizer, EmotiEffLibRecognizerBase
 from transformers import Wav2Vec2ForXVector, Wav2Vec2Processor
 from transformers import AutoModel, AutoTokenizer
 
@@ -142,58 +145,46 @@ def preprocess_meta(
 
 def preprocess_video(
     preprocessed_dir_path: Path,
-    emoti_eff,
+    emoti_eff: EmotiEffLibRecognizerBase,
 ):
-    for video_path in sorted(preprocessed_dir_path.glob("video/*.png")):
-        rprint(f"{video_path = }")
+    video_dir_paths = sorted(
+        [path for path in (preprocessed_dir_path / "video").iterdir() if path.is_dir()]
+    )
 
+    for video_path in tqdm(
+        video_dir_paths,
+        desc="Preprocessing Videos",
+        total=len(video_dir_paths),
+        unit="video",
+    ):
         out_path = preprocessed_dir_path / "video" / f"{video_path.stem}.pt"
         if os.path.exists(out_path):
             continue
 
-        video = cv2.imread(str(video_path))
-        # video = cv2.cvtColor(video, cv2.COLOR_BGR2RGB)
+        video_features = []
+        batch_size = 64
+        frame_paths = sorted(video_path.glob("*.png"))
+        for i in range(0, len(frame_paths), batch_size):
+            batch_frame_paths = frame_paths[i : i + batch_size]
+            batch_frames: list[np.ndarray] = [
+                cv2.imread(str(frame_path), cv2.IMREAD_COLOR_RGB)
+                for frame_path in batch_frame_paths
+            ]
 
-        video_features = emoti_eff.extract_features(video)
-        video_features = torch.from_numpy(video_features)
-        # rprint(video_features.size())
+            batch_video_features = emoti_eff.extract_features(batch_frames)
+            video_features.extend(batch_video_features)
 
-        torch.save(
-            obj=video_features.squeeze(0),  # 1280
-            f=preprocessed_dir_path / "video" / f"{video_path.stem}.pt",
+        video_features: np.ndarray = np.array(video_features)
+        video_features: Float[Tensor, "frames features"] = (  # noqa: F722
+            torch.from_numpy(video_features)
         )
-
-        # video = cv2.VideoCapture(str(video_path))
-        # frames = []
-        # while True:
-        #     ret, frame = video.read()
-        #     if not ret:
-        #         break
-        #     frames.append(frame)
-        # fps = video.get(cv2.CAP_PROP_FPS)
-        # video.release()
-
-        # cropped_frames: list[np.ndarray] = [frame for frame in video.iter_frames()]
-        # video.close()
-
-        # # apply emotiefflib to extract embedding of each frame's face
-        # batch_size = 32
-        # features: list[np.ndarray] = []
-        # for i in range(0, len(cropped_frames), batch_size):
-        #     batch = cropped_frames[i : i + batch_size]
-        #     batch_features = emoti_eff.extract_features(batch)
-        #     features.extend(batch_features)
-
-        # # boost performance of conversions list[np.ndarray] -> np.ndarray
-        # features = np.array(features)
-        # video_features: Float[torch.Tensor, "frames features"] = (  # noqa: F722
-        #     torch.from_numpy(features)
+        # video_features: Float[Tensor, "features"] = video_features.mean(  # noqa: F821
+        #     dim=0
         # )
+        video_features = reduce(video_features, "frames features -> features", "mean")
+        assert video_features.shape == (1280,)
 
-        # torch.save(
-        #     obj=video_features,
-        #     f=preprocessed_dir_path / "video" / f"{video_path.stem}.pt",
-        # )
+        torch.save(obj=video_features, f=out_path)
 
 
 def preprocess_audio(
@@ -339,8 +330,6 @@ def main():
     # Video #
     #########
     if args.preprocess_video:
-        from emotiefflib.facial_analysis import EmotiEffLibRecognizer
-
         with mlflow.start_run(run_name="Video Preprocessing"):
             emoti_eff = EmotiEffLibRecognizer(
                 model_name="enet_b0_8_best_vgaf",
