@@ -6,7 +6,6 @@ import subprocess
 from tqdm import tqdm
 from typing import List
 from pathlib import Path
-from rich import print as rprint
 
 import torch
 import whisper
@@ -169,17 +168,18 @@ def extract_audio(
     file_paths: List[Path],
     preprocessed_dir_path: Path,
 ):
-    for file_path in file_paths:
-        rprint(f"{file_path = }")
-
+    for file_path in tqdm(
+        file_paths, desc="Extracting audio", total=len(file_paths), unit="audio"
+    ):
         out_path = preprocessed_dir_path / "audio" / f"{file_path.stem}.wav"
-        if not os.path.exists(out_path):
-            rprint(f"Converting {file_path} to {out_path}")
-            subprocess.call(
-                args=["ffmpeg", "-y", "-i", str(file_path), str(out_path)],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-            )
+        if os.path.exists(out_path):
+            continue
+
+        subprocess.call(
+            args=["ffmpeg", "-y", "-i", str(file_path), str(out_path)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
 
 
 def extract_text(
@@ -187,23 +187,20 @@ def extract_text(
 ):
     # check if audio preprocessing has already been accomplished
     audio_files = sorted(preprocessed_dir_path.glob("audio/*.wav"))
-    if len(audio_files) != len(file_paths):
-        rprint("Extracting audio first...")
-        extract_audio(file_paths, preprocessed_dir_path)
+    assert len(audio_files) == len(
+        file_paths
+    ), f"Audio preprocessing has not been done yet, {len(file_paths) = } != {len(audio_files) = }"
 
     audio_files = sorted(preprocessed_dir_path.glob("audio/*.wav"))
-    assert len(audio_files) == len(file_paths)
     file_paths = audio_files
 
-    for file_path in file_paths:
-        rprint(f"{file_path = }")
-
-        if os.path.exists(preprocessed_dir_path / "text" / f"{file_path.stem}.txt"):
+    for file_path in tqdm(file_paths, desc="Extracting text", total=len(file_paths)):
+        out_path = preprocessed_dir_path / "text" / f"{file_path.stem}.txt"
+        if os.path.exists(out_path):
             continue
 
         text = model.transcribe(str(file_path), temperature=0)["text"]
 
-        out_path = preprocessed_dir_path / "text" / f"{file_path.stem}.txt"
         with open(out_path, "w") as f:
             f.write(text)
 
@@ -280,7 +277,7 @@ def main():
             mlflow.log_param("text_train_size", len(train_file_paths))
             mlflow.log_param("text_val_size", len(val_file_paths))
 
-            model = whisper.load_model(name="small", device=args.text_model_device)
+            model = whisper.load_model(name="large", device=args.text_model_device)
 
             extract_text(
                 file_paths=train_file_paths,
