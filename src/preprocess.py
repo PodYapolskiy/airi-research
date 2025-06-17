@@ -162,7 +162,7 @@ def preprocess_video(
             continue
 
         video_features = []
-        batch_size = 64
+        batch_size = 100
         frame_paths = sorted(video_path.glob("*.png"))
         for i in range(0, len(frame_paths), batch_size):
             batch_frame_paths = frame_paths[i : i + batch_size]
@@ -178,9 +178,6 @@ def preprocess_video(
         video_features: Float[Tensor, "frames features"] = (  # noqa: F722
             torch.from_numpy(video_features)
         )
-        # video_features: Float[Tensor, "features"] = video_features.mean(  # noqa: F821
-        #     dim=0
-        # )
         video_features = reduce(video_features, "frames features -> features", "mean")
         assert video_features.shape == (1280,)
 
