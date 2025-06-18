@@ -12,14 +12,16 @@ from sklearn.preprocessing import MinMaxScaler
 
 import torch
 from torch import Tensor
-from einops import reduce
+from einops import rearrange, reduce
 import torch.nn.functional as F
 from jaxtyping import Float
 import torchaudio
 from tqdm import tqdm
 import transformers
 from emotiefflib.facial_analysis import EmotiEffLibRecognizer, EmotiEffLibRecognizerBase
-from transformers import Wav2Vec2ForXVector, Wav2Vec2Processor
+
+# from transformers import Wav2Vec2ForXVector, Wav2Vec2Processor
+from transformers import HubertModel, AutoProcessor
 from transformers import AutoModel, AutoTokenizer
 
 from utils import ensure_mlflow, ensure_paths
@@ -186,45 +188,71 @@ def preprocess_video(
 
 def preprocess_audio(
     preprocessed_dir_path: Path,
-    model: Wav2Vec2ForXVector,
-    processor: Wav2Vec2Processor,
+    model: HubertModel,
+    processor: AutoProcessor,
     device: torch.device,
 ):
-    model.eval()
-    for audio_path in sorted(preprocessed_dir_path.glob("audio/*.wav")):
-        rprint(f"{audio_path = }")
+    audio_paths = sorted(preprocessed_dir_path.glob("audio/*.wav"))
+    for audio_path in tqdm(
+        audio_paths, desc="Preprocessing Audio", total=len(audio_paths), unit="audio"
+    ):
+        out_path = audio_path.with_suffix(".pt")
+        # if os.path.exists(out_path):
+        #     continue
 
-        if os.path.exists(audio_path.with_suffix(".pt")):
-            continue
+        waveform, sr = torchaudio.load(str(audio_path))
 
-        waveform, sr = torchaudio.load(audio_path)
+        # important to resemple to 16kHz as model expects it
+        sampling_rate = 16000
+        waveform = torchaudio.functional.resample(
+            waveform, orig_freq=sr, new_freq=sampling_rate
+        )
         # waveform = torchaudio.functional.vad(waveform, sr)  # trim silence
 
-        signal: Float[Tensor, "channels amplitudes"] = (
-            processor(  # noqa: F722 # type: ignore
-                waveform, sampling_rate=16000, return_tensors="pt"
-            ).input_values.squeeze(0)
-        )
-        signal = signal.half().to(device)
+        signal: Float[Tensor, "channels amplitudes"] = processor(  # noqa: F722
+            audio=waveform, sampling_rate=sampling_rate, return_tensors="pt"
+        ).input_values
+
+        signal = rearrange(signal, "1 channels timestemps -> channels timestemps")
 
         try:
+            signal = signal.to(device)
             with torch.no_grad():
                 outputs = model(signal)  # noqa: F722
-            audio_features: Float[torch.Tensor, "channels features"] = (  # noqa: F722
-                outputs.embeddings.detach().cpu()
+
+            audio_features = outputs.last_hidden_state.detach().cpu()
+            audio_features = reduce(
+                audio_features,
+                "channels timestemps dim -> channels dim",
+                "mean",
             )
-        except torch.OutOfMemoryError:
+            audio_features = reduce(audio_features, "channels dim -> dim", "mean")
+        except torch.cuda.OutOfMemoryError:
             embeddings = []
-            chunks = torch.split(signal, 120 * 16000, dim=1)  # 2-mitute chunks
+            chunks = torch.split(signal, 60 * 16000, dim=1)  # 1-mitute chunks
             with torch.no_grad():
                 for chunk in chunks:
-                    embeddings.append(model(chunk).embeddings)
+                    chunk = chunk.to(device)
+                    outputs = model(chunk)
 
-            audio_features = torch.mean(torch.stack(embeddings), dim=0)
+                    audio_features = outputs.last_hidden_state.detach().cpu()
+                    audio_features = reduce(
+                        audio_features,
+                        "channels timestemps dim -> channels dim",
+                        "mean",
+                    )
+
+                    embeddings.append(audio_features)
+
+            audio_features = torch.stack(embeddings)
+            audio_features = reduce(
+                embeddings, "chunks channels dim -> channels dim", "mean"
+            )
+            audio_features = reduce(audio_features, "channels dim -> dim", "mean")
 
         torch.save(
             obj=audio_features,
-            f=preprocessed_dir_path / "audio" / f"{audio_path.stem}.pt",
+            f=out_path,
         )
 
 
@@ -359,14 +387,14 @@ def main():
         with mlflow.start_run(run_name="Audio Preprocessing"):
             transformers.logging.set_verbosity_error()
 
-            model_id = "facebook/wav2vec2-base"
+            model_id = "facebook/hubert-xlarge-ls960-ft"
             device = torch.device(args.audio_model_device)
-            model = Wav2Vec2ForXVector.from_pretrained(
-                model_id, weights_only=True
-            )  # use_safetensors=True,
-            model = model.half().to(device)
+            processor = AutoProcessor.from_pretrained(model_id)
+            model = HubertModel.from_pretrained(
+                model_id,
+                use_safetensors=True,
+            ).to(device)
             model.eval()
-            processor = Wav2Vec2Processor.from_pretrained(model_id)
 
             preprocess_audio(
                 preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
