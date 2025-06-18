@@ -1,4 +1,5 @@
 import os
+import re
 import cv2
 import mlflow
 import argparse
@@ -185,6 +186,10 @@ def extract_audio(
 def extract_text(
     file_paths: List[Path], preprocessed_dir_path: Path, model: whisper.Whisper
 ):
+    longest_length = 0
+    longest_text = ""
+    longest_path = ""
+
     # check if audio preprocessing has already been accomplished
     audio_files = sorted(preprocessed_dir_path.glob("audio/*.wav"))
     assert len(audio_files) == len(
@@ -201,8 +206,44 @@ def extract_text(
 
         text = model.transcribe(str(file_path), temperature=0)["text"]
 
+        # Remove repeating sentences after generation
+        # happen with long audios
+        sentence_splitter = re.compile(r"(?<=[.!?])\s+")
+        sentences = sentence_splitter.split(text)
+
+        # remove any empty sentences and consecutive duplicates
+        filtered_sentences = []
+        for sentence in sentences:
+            sentence = sentence.strip()
+
+            if not sentence:
+                continue
+
+            if len(filtered_sentences) > 1:
+                if (
+                    sentence == filtered_sentences[-1]
+                    or sentence == filtered_sentences[-2]
+                ):
+                    continue
+            elif len(filtered_sentences) > 0:
+                if sentence == filtered_sentences[-1]:
+                    continue
+
+            filtered_sentences.append(sentence)
+
+        text = " ".join(filtered_sentences)
         with open(out_path, "w") as f:
             f.write(text)
+
+        mlflow.log_metric("text_length", len(text), step=i)
+        if len(text) > longest_length:
+            longest_length = len(text)
+            longest_text = text
+            longest_path = file_path
+
+    mlflow.log_text(longest_text, "longest.txt")
+    mlflow.log_metric("longest_length", longest_length)
+    mlflow.log_text(str(longest_path), "longest_path.txt")
 
 
 def main():

@@ -261,44 +261,59 @@ def preprocess_text(
     model: AutoModel,
     processor: AutoTokenizer,
 ):
-    def mean_pooling(model_output, attention_mask):
-        token_embeddings = model_output[0]
-        input_mask_expanded = (
-            attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-        )
-        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(
-            input_mask_expanded.sum(1), min=1e-9
-        )
-
-    max_length = 8192
-    for text_path in sorted(preprocessed_dir_path.glob("text/*.txt")):
-        rprint(f"{text_path = }")
+    text_paths = sorted(preprocessed_dir_path.glob("text/*.txt"))
+    for i, text_path in tqdm(
+        enumerate(text_paths),
+        desc="Preprocessing Text",
+        total=len(text_paths),
+        unit="text",
+    ):
 
         out_path = preprocessed_dir_path / "text" / f"{text_path.stem}.pt"
-        if os.path.exists(out_path):
-            continue
+        #     if os.path.exists(out_path):
+        #         continue
 
         with open(text_path, "r") as f:
             text = f.read()
 
+        max_len = 512
         inputs = processor(
             text,
-            padding=True,
-            truncation=True,
-            max_length=max_length,
             return_tensors="pt",
-        ).to(model.device)
-
-        with torch.no_grad():
-            outputs = model(**inputs)
-
-        embeddings = mean_pooling(outputs, inputs["attention_mask"])
-        embeddings = F.normalize(embeddings, p=2, dim=1)
-
-        torch.save(
-            obj=embeddings.squeeze(0),  # 1024
-            f=out_path,
+            truncation=False,
+            # padding=True,
+            # max_length=max_len,
         )
+        inputs = inputs.to(model.device)
+        if inputs.input_ids.size(-1) > max_len:
+            # rprint(text_path)
+            start_input = inputs.input_ids[:, :max_len]  # torch.clone(
+            end_input = inputs.input_ids[:, -max_len:]
+
+            with torch.no_grad():
+                start_output = model(start_input)
+                end_input = model(end_input)
+
+            assert (
+                start_output.last_hidden_state.shape
+                == end_input.last_hidden_state.shape
+            )
+
+            # [:, 0] is the CLS token for each sequence after output
+            start_embedding = start_output.last_hidden_state.detach().cpu()[:, 0]
+            end_embedding = end_input.last_hidden_state.detach().cpu()[:, 0]
+            embedding = torch.stack([start_embedding, end_embedding])
+            embedding = rearrange(embedding, "parts 1 dim -> parts dim")
+            embedding = reduce(embedding, "parts dim -> dim", "mean")
+        else:  # normal flow
+            with torch.no_grad():
+                output = model(**inputs)
+
+            embedding = output.last_hidden_state.detach().cpu()[:, 0]
+            embedding = rearrange(embedding, "1 dim -> dim")
+
+        assert embedding.shape == (768,)
+        torch.save(obj=embedding, f=out_path)
 
 
 def main():
@@ -417,18 +432,16 @@ def main():
     ########
     if args.preprocess_text:
         with mlflow.start_run(run_name="Text Preprocessing"):
-            # statistics of texts
-            for text_path in sorted(PREPROCESSED_TRAIN_DIR_PATH.glob("text/*.txt")):
-                with open(text_path, "r") as f:
-                    text = f.read()
-                    mlflow.log_metric("text_len", len(text))
-
-            model_id = "jinaai/jina-embeddings-v3"  # "Qwen/Qwen3-Embedding-0.6B"
-            model = AutoModel.from_pretrained(
-                model_id, use_safetensors=True, trust_remote_code=True
-            ).to(args.text_model_device)
+            # model_id = "jinaai/jina-embeddings-v3"  # "Qwen/Qwen3-Embedding-0.6B"
+            # model = AutoModel.from_pretrained(
+            #     model_id, use_safetensors=True, trust_remote_code=True
+            # ).to(args.text_model_device)
+            model_id = "j-hartmann/emotion-english-distilroberta-base"
+            model = AutoModel.from_pretrained(model_id, use_safetensors=True).to(
+                args.text_model_device
+            )
             model.eval()
-            tokenizer = AutoTokenizer.from_pretrained(model_id, padding_side="left")
+            tokenizer = AutoTokenizer.from_pretrained(model_id)
 
             preprocess_text(
                 preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
