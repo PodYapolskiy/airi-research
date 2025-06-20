@@ -16,6 +16,8 @@ Models:
 - [Only Audio](./src/train_audio_personality.py) - OnlyNet on `[embedding (512)]`
 - [Only Text](./src/train_text_personality.py) - OnlyNet on `[embedding (1024)]`
 
+Baselines
+
 #### Personality
 
 |  Metric   | Label             | Only Meta | Only Video | Only Audio | Only Text | Meta Text (early fusion) | Meta Text (late fusion) | Meta Video Audio Text (early fusion) | Meta Video Audio Text (late fusion) |
@@ -46,6 +48,63 @@ Models:
 |           | Development_orientation |   0.039   | 0.046 | 0.008 | -0.026 |          -0.138          |         -0.030          |                0.045                 |              **0.054**              |
 |           | Hireability             | **0.111** | 0.051 | 0.010 | 0.073  |          0.065           |         -0.002          |                0.077                 |                0.079                |
 
+#### By Modal / Modalities
+
+```python
+Ridge(random_state=42)
+LinearSVR(random_state=42, max_iter=2000)
+CatBoostRegressor(
+    iterations=1500, random_seed=42, loss_function="RMSE", verbose=False
+)
+```
+
+- ![alt](https://img.shields.io/badge/0.000-black?style=for-the-badge) - meta information
+- ![alt](https://img.shields.io/badge/0.000-red?style=for-the-badge) - video (all frames averaged)
+- ![alt](https://img.shields.io/badge/0.000-green?style=for-the-badge) - audio (hubert)
+- ![alt](https://img.shields.io/badge/0.000-blue?style=for-the-badge) - text
+
+- ![alt](https://img.shields.io/badge/0.000-darkgreen?style=for-the-badge) - meta + audio
+- ![alt](https://img.shields.io/badge/0.000-darkblue?style=for-the-badge) - meta + text
+- ![alt](https://img.shields.io/badge/0.000-008080?style=for-the-badge) - audio + text
+
+- ![alt](https://img.shields.io/badge/0.000-555B00?style=for-the-badge) - meta + video + audio
+- ![alt](https://img.shields.io/badge/0.000-196663?style=for-the-badge) - meta + audio + text
+
+- ![alt](https://img.shields.io/badge/0.000-white?style=for-the-badge) - all modalities
+
+| Metric | Label                   | Ridge                                                                      | LinearSVR                                                                | CatBoostRegressor                                                        | MLP                                                                     |
+| :----: | :---------------------- | :------------------------------------------------------------------------- | :----------------------------------------------------------------------- | :----------------------------------------------------------------------- | :---------------------------------------------------------------------- |
+|  MSE   | Honesty-Humility        | ![0.185](https://img.shields.io/badge/0.185-black?style=for-the-badge)     | ![alt](https://img.shields.io/badge/0.187-black?style=for-the-badge)     | ![alt](https://img.shields.io/badge/0.191-555B00?style=for-the-badge)    | ![alt](https://img.shields.io/badge/0.180-blue?style=for-the-badge)     |
+|        | Extraversion            | ![0.237](https://img.shields.io/badge/0.237-green?style=for-the-badge)     | ![alt](https://img.shields.io/badge/0.228-green?style=for-the-badge)     | ![alt](https://img.shields.io/badge/0.227-008080?style=for-the-badge)    | ![alt](https://img.shields.io/badge/0.219-blue?style=for-the-badge)     |
+|        | Agreeableness           | ![0.216](https://img.shields.io/badge/0.216-black?style=for-the-badge)     | ![alt](https://img.shields.io/badge/0.215-black?style=for-the-badge)     | ![alt](https://img.shields.io/badge/0.206-darkblue?style=for-the-badge)  | ![alt](https://img.shields.io/badge/0.213-darkblue?style=for-the-badge) |
+|        | Conscientiousness       | ![0.178](https://img.shields.io/badge/0.178-black?style=for-the-badge)     | ![alt](https://img.shields.io/badge/0.176-black?style=for-the-badge)     | ![alt](https://img.shields.io/badge/0.177-196663?style=for-the-badge)    | ![alt](https://img.shields.io/badge/0.-black?style=for-the-badge)       |
+|        |                         |                                                                            |                                                                          |                                                                          |                                                                         |
+|        | Integrity               | ![0.204](https://img.shields.io/badge/0.204-black?style=for-the-badge)     | ![alt](https://img.shields.io/badge/0.209-black?style=for-the-badge)     | ![alt](https://img.shields.io/badge/0.198-darkgreen?style=for-the-badge) | ![alt](https://img.shields.io/badge/0.-black?style=for-the-badge)       |
+|        | Collegiality            | ![0.281](https://img.shields.io/badge/0.281-darkgreen?style=for-the-badge) | ![alt](https://img.shields.io/badge/0.292-black?style=for-the-badge)     | ![alt](https://img.shields.io/badge/0.278-darkgreen?style=for-the-badge) | ![alt](https://img.shields.io/badge/0.-black?style=for-the-badge)       |
+|        | Social_versatility      | ![0.278](https://img.shields.io/badge/0.278-darkgreen?style=for-the-badge) | ![alt](https://img.shields.io/badge/0.291-black?style=for-the-badge)     | ![alt](https://img.shields.io/badge/0.281-196663?style=for-the-badge)    | ![alt](https://img.shields.io/badge/0.-black?style=for-the-badge)       |
+|        | Development_orientation | ![0.224](https://img.shields.io/badge/0.224-green?style=for-the-badge)     | ![alt](https://img.shields.io/badge/0.216-black?style=for-the-badge)     | ![alt](https://img.shields.io/badge/0.223-green?style=for-the-badge)     | ![alt](https://img.shields.io/badge/0.223-white?style=for-the-badge)    |
+|        | Hireability             | ![0.297](https://img.shields.io/badge/0.297-darkgreen?style=for-the-badge) | ![alt](https://img.shields.io/badge/0.319-darkgreen?style=for-the-badge) | ![alt](https://img.shields.io/badge/0.314-196663?style=for-the-badge)    | ![alt](https://img.shields.io/badge/0.-black?style=for-the-badge)       |
+
+<!-- |           |                   |                                                                      |           |                   |     |
+| $` R^2 `$ | Honesty-Humility  | ![alt](https://img.shields.io/badge/%20-0.185-black?style=for-the-badge) |           |                   |     |
+|           | Extraversion      |                                                                      |           |                   |     |
+|           | Agreeableness     |                                                                      |           |                   |     |
+|           | Conscientiousness |                                                                      |           |                   |     | -->
+
+<!-- #### Personality
+
+|  Metric   | Label             | Ridge | LinearSVR | CatBoostRegressor | MLP |
+| :-------: | :---------------- | :---: | :-------: | :---------------: | :-: |
+|    MSE    | Honesty-Humility  |       |           |                   |     |
+|           | Extraversion      |       |           |                   |     |
+|           | Agreeableness     |       |           |                   |     |
+|           | Conscientiousness |       |           |                   |     |
+|           |                   |       |           |                   |     |
+| $` R^2 `$ | Honesty-Humility  |       |           |                   |     |
+|           | Extraversion      |       |           |                   |     |
+|           | Agreeableness     |       |           |                   |     |
+|           | Conscientiousness |       |           |                   |     | -->
+
 ## Setup
 
 ```bash
@@ -72,8 +131,7 @@ uv run src/preprocess.py
 
 ## Links
 
-https://github.com/EvelynFan/AWESOME-FER?tab=readme-ov-file
-
-https://ieeexplore.ieee.org/document/9649076
-https://ieeexplore.ieee.org/document/9815154
-https://ieeexplore.ieee.org/document/9896386
+- https://github.com/EvelynFan/AWESOME-FER?tab=readme-ov-file
+- https://ieeexplore.ieee.org/document/9649076
+- https://ieeexplore.ieee.org/document/9815154
+- https://ieeexplore.ieee.org/document/9896386
