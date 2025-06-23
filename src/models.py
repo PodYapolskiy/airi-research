@@ -140,8 +140,8 @@ class PerformanceNet(nn.Module):
         with_text: bool = False,
         meta_dim: int = 13,
         video_dim: int = 1280,
-        audio_dim: int = 512,
-        text_dim: int = 1024,
+        audio_dim: int = 1280,
+        text_dim: int = 768,
         fusion_strategy: Literal["early", "late"] = "late",
     ):
         super(PerformanceNet, self).__init__()

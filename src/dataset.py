@@ -1,4 +1,5 @@
 import os
+import warnings
 import pandas as pd
 from pathlib import Path
 from typing import Tuple
@@ -7,22 +8,17 @@ import torch
 from torch import Tensor
 from torch.utils.data import Dataset, DataLoader
 
-import warnings
-
-# from jaxtyping import Float
-
 
 def get_tensor_from_path(path: str, dim: int) -> Tensor:
     if os.path.exists(path):
         tensor = torch.load(path, map_location="cpu", weights_only=True)
-        # Average across frames if needed
-        if len(tensor.shape) > 1:
-            tensor = torch.mean(tensor, dim=0)
     else:
         warnings.warn("Tensor not found at path: " + path)
         tensor = torch.zeros(dim)
 
-    assert tensor.size(-1) == dim
+    assert (
+        tensor.size(-1) == dim
+    ), f"Tensor dimension {tensor.size(-1)} does not match {dim}"
     return tensor
 
 
@@ -37,6 +33,9 @@ class PersonalityDataset(Dataset):
         df: pd.DataFrame,
         preprocessed_dir_path: Path,
         trait: str,
+        video_dim: int = 1280,
+        audio_dim: int = 1280,
+        text_dim: int = 768,
     ) -> None:
         """
         Initialize the dataset.
@@ -53,6 +52,10 @@ class PersonalityDataset(Dataset):
             "Conscientiousness",
         ]
         assert trait in personality_labels, f"Invalid personality trait: {trait}"
+
+        self.video_dim = video_dim
+        self.audio_dim = audio_dim
+        self.text_dim = text_dim
 
         self.video_paths: list[str] = []
         self.audio_paths: list[str] = []
@@ -94,9 +97,9 @@ class PersonalityDataset(Dataset):
         return len(self.labels)
 
     def __getitem__(self, idx):
-        video_tensor = get_tensor_from_path(self.video_paths[idx], 1280)
-        audio_tensor = get_tensor_from_path(self.audio_paths[idx], 512).float()
-        text_tensor = get_tensor_from_path(self.text_paths[idx], 1024)
+        video_tensor = get_tensor_from_path(self.video_paths[idx], self.video_dim)
+        audio_tensor = get_tensor_from_path(self.audio_paths[idx], self.audio_dim)
+        text_tensor = get_tensor_from_path(self.text_paths[idx], self.text_dim)
 
         return {
             "video_embedding": video_tensor,
@@ -118,6 +121,9 @@ class PerformanceDataset(Dataset):
         df: pd.DataFrame,
         preprocessed_dir_path: Path,
         trait: str,
+        video_dim: int = 1280,
+        audio_dim: int = 1280,
+        text_dim: int = 768,
     ) -> None:
         """
         Initialize the dataset.
@@ -135,6 +141,10 @@ class PerformanceDataset(Dataset):
             "Hireability",
         ]
         assert trait in target_columns, f"Invalid performance trait: {trait}"
+
+        self.video_dim = video_dim
+        self.audio_dim = audio_dim
+        self.text_dim = text_dim
 
         self.video_paths: list[list[str]] = []
         self.audio_paths: list[list[str]] = []
@@ -203,9 +213,9 @@ class PerformanceDataset(Dataset):
         for q, (video_path, audio_path, text_path) in enumerate(
             zip(video_paths, audio_paths, text_paths), start=1
         ):
-            video_tensor = get_tensor_from_path(video_path, 1280)
-            audio_tensor = get_tensor_from_path(audio_path, 512).float()
-            text_tensor = get_tensor_from_path(text_path, 1024)
+            video_tensor = get_tensor_from_path(video_path, self.video_dim)
+            audio_tensor = get_tensor_from_path(audio_path, self.audio_dim)
+            text_tensor = get_tensor_from_path(text_path, self.text_dim)
 
             interview_answers[f"q{q}"] = {
                 "video_embedding": video_tensor,
