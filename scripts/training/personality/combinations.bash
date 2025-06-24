@@ -29,6 +29,7 @@ for trait in "${traits[@]}"; do
             --device cuda \
             --epochs 150 \
             --lr 0.001 \
+            --fusion late \
             --trait "$trait" \
             $modalities
     done

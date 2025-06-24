@@ -1,12 +1,12 @@
 import argparse
 from pathlib import Path
-from rich import print as rprint
 
 import mlflow
 import torch
 from torch import Tensor
 from jaxtyping import Float
 from torcheval.metrics import R2Score, MeanSquaredError
+from tqdm import tqdm
 
 from models import PerformanceNet
 from dataset import get_performance_dataloaders
@@ -178,8 +178,8 @@ def parse_arguments() -> argparse.Namespace:
     # ...
     parser.add_argument("--meta-dim", type=int, default=13)
     parser.add_argument("--video-dim", type=int, default=1280)
-    parser.add_argument("--audio-dim", type=int, default=512)
-    parser.add_argument("--text-dim", type=int, default=1024)
+    parser.add_argument("--audio-dim", type=int, default=1280)
+    parser.add_argument("--text-dim", type=int, default=768)
 
     parser.add_argument("--fusion", type=str, default="late", choices=["early", "late"])
 
@@ -260,8 +260,9 @@ def main():
         optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
         criterion = torch.nn.MSELoss()
 
-        for epoch in range(args.epochs):
-            rprint("Epoch: ", epoch)
+        for epoch in tqdm(
+            range(args.epochs), total=args.epochs, desc=run_name, unit="epoch"
+        ):
             train_loss = train_epoch(
                 model=model,
                 device=device,
