@@ -91,13 +91,18 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--preprocess-video", action="store_true")
     parser.add_argument("--preprocess-audio", action="store_true")
     parser.add_argument("--preprocess-text", action="store_true")
-
     parser.set_defaults(
         preprocess_meta=False,
         preprocess_video=False,
         preprocess_audio=False,
         preprocess_text=False,
     )
+
+    # parts
+    parser.add_argument("--train", action="store_true")
+    parser.add_argument("--val", action="store_true")
+    parser.add_argument("--test", action="store_true")
+    parser.set_defaults(train=False, val=False, test=False)
 
     # parser.add_argument(
     #     "--preprocess-meta",
@@ -323,13 +328,24 @@ def main():
 
     ensure_paths(args.data_dir, args)
     DATA_DIR_PATH = Path(args.data_dir)
+
     PREPROCESSED_TRAIN_DIR_PATH = DATA_DIR_PATH / args.preprocessed_train_dir
     PREPROCESSED_VAL_DIR_PATH = DATA_DIR_PATH / args.preprocessed_val_dir
+    PREPROCESSED_TEST_DIR_PATH = DATA_DIR_PATH / args.preprocessed_test_dir
 
     ########
     # Meta #
     ########
     if args.preprocess_meta:
+
+        if args.train:
+            ...
+
+        if args.val:
+            ...
+        if args.test:
+            ...
+
         with mlflow.start_run(run_name="Meta Preprocessing"):
             df_train = pd.read_csv(DATA_DIR_PATH / args.train_csv)
             df_val = pd.read_csv(DATA_DIR_PATH / args.val_csv)
@@ -370,89 +386,125 @@ def main():
     # Video #
     #########
     if args.preprocess_video:
-        with mlflow.start_run(run_name="Video Preprocessing"):
-            emoti_eff = EmotiEffLibRecognizer(
-                model_name="enet_b0_8_best_vgaf",
-                device=args.video_model_device,
-                engine="torch",
-            )
+        emoti_eff = EmotiEffLibRecognizer(
+            model_name="enet_b0_8_best_vgaf",
+            device=args.video_model_device,
+            engine="torch",
+        )
 
-            # TODO: ...
-            if args.custom_preprocess:
+        # TODO: ...
+        if args.custom_preprocess:
 
-                def _preprocess():
-                    pass
+            def _preprocess():
+                pass
 
-                emoti_eff._preprocess = _preprocess
+            emoti_eff._preprocess = _preprocess
 
-            preprocess_video(
-                preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH, emoti_eff=emoti_eff
-            )
-            preprocess_video(
-                preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH, emoti_eff=emoti_eff
-            )
+        if args.train:
+            with mlflow.start_run(run_name="Video Preprocessing (Train)"):
+                preprocess_video(
+                    preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
+                    emoti_eff=emoti_eff,
+                )
 
-            emoti_eff.model.to("cpu")
-            del emoti_eff
+        if args.val:
+            with mlflow.start_run(run_name="Video Preprocessing (Val)"):
+                preprocess_video(
+                    preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH, emoti_eff=emoti_eff
+                )
+
+        if args.test:
+            with mlflow.start_run(run_name="Video Preprocessing (Test)"):
+                preprocess_video(
+                    preprocessed_dir_path=PREPROCESSED_TEST_DIR_PATH,
+                    emoti_eff=emoti_eff,
+                )
+
+        emoti_eff.model.to("cpu")
+        del emoti_eff
 
     #########
     # Audio #
     #########
     if args.preprocess_audio:
-        with mlflow.start_run(run_name="Audio Preprocessing"):
-            transformers.logging.set_verbosity_error()
+        transformers.logging.set_verbosity_error()
 
-            model_id = "facebook/hubert-xlarge-ls960-ft"
-            device = torch.device(args.audio_model_device)
-            processor = AutoProcessor.from_pretrained(model_id)
-            model = HubertModel.from_pretrained(
-                model_id,
-                use_safetensors=True,
-            ).to(device)
-            model.eval()
+        model_id = "facebook/hubert-xlarge-ls960-ft"
+        device = torch.device(args.audio_model_device)
+        processor = AutoProcessor.from_pretrained(model_id)
+        model = HubertModel.from_pretrained(
+            model_id,
+            use_safetensors=True,
+        ).to(device)
+        model.eval()
 
-            preprocess_audio(
-                preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
-                model=model,
-                processor=processor,
-                device=device,
-            )
-            preprocess_audio(
-                preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
-                model=model,
-                processor=processor,
-                device=device,
-            )
+        if args.train:
+            with mlflow.start_run(run_name="Audio Preprocessing (Train)"):
+                preprocess_audio(
+                    preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
+                    model=model,
+                    processor=processor,
+                    device=device,
+                )
 
-            model.to("cpu")
-            del model
+        if args.val:
+            with mlflow.start_run(run_name="Audio Preprocessing (Val)"):
+                preprocess_audio(
+                    preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
+                    model=model,
+                    processor=processor,
+                    device=device,
+                )
+
+        if args.test:
+            with mlflow.start_run(run_name="Audio Preprocessing (Test)"):
+                preprocess_audio(
+                    preprocessed_dir_path=PREPROCESSED_TEST_DIR_PATH,
+                    model=model,
+                    processor=processor,
+                    device=device,
+                )
+
+        model.to("cpu")
+        del model
 
     ########
     # Text #
     ########
     if args.preprocess_text:
-        with mlflow.start_run(run_name="Text Preprocessing"):
-            # model_id = "jinaai/jina-embeddings-v3"  # "Qwen/Qwen3-Embedding-0.6B"
-            # model = AutoModel.from_pretrained(
-            #     model_id, use_safetensors=True, trust_remote_code=True
-            # ).to(args.text_model_device)
-            model_id = "j-hartmann/emotion-english-distilroberta-base"
-            model = AutoModel.from_pretrained(model_id, use_safetensors=True).to(
-                args.text_model_device
-            )
-            model.eval()
-            tokenizer = AutoTokenizer.from_pretrained(model_id)
+        model_id = "j-hartmann/emotion-english-distilroberta-base"
+        model = AutoModel.from_pretrained(model_id, use_safetensors=True).to(
+            args.text_model_device
+        )
+        model.eval()
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
 
-            preprocess_text(
-                preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
-                model=model,
-                processor=tokenizer,
-            )
-            preprocess_text(
-                preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
-                model=model,
-                processor=tokenizer,
-            )
+        if args.train:
+            with mlflow.start_run(run_name="Text Preprocessing (Train)"):
+                preprocess_text(
+                    preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
+                    model=model,
+                    processor=tokenizer,
+                )
+
+        if args.val:
+            with mlflow.start_run(run_name="Text Preprocessing (Val)"):
+                preprocess_text(
+                    preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
+                    model=model,
+                    processor=tokenizer,
+                )
+
+        if args.test:
+            with mlflow.start_run(run_name="Text Preprocessing (Test)"):
+                preprocess_text(
+                    preprocessed_dir_path=PREPROCESSED_TEST_DIR_PATH,
+                    model=model,
+                    processor=tokenizer,
+                )
+
+        model.to("cpu")
+        del model
 
 
 if __name__ == "__main__":

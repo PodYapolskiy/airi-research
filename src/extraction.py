@@ -34,6 +34,9 @@ def parse_arguments() -> argparse.Namespace:
         "--val-dir", type=str, default="val_data", help="Path to the val directory"
     )
     parser.add_argument(
+        "--test-dir", type=str, default="test_data", help="Path to the test directory"
+    )
+    parser.add_argument(
         "--preprocessed-train-dir",
         type=str,
         default="preprocessed_train_data",
@@ -44,6 +47,12 @@ def parse_arguments() -> argparse.Namespace:
         type=str,
         default="preprocessed_val_data",
         help="Path to the preprocessed val directory",
+    )
+    parser.add_argument(
+        "--preprocessed-test-dir",
+        type=str,
+        default="preprocessed_test_data",
+        help="Path to the preprocessed test directory",
     )
 
     # meta
@@ -78,6 +87,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--extract-audio", action="store_true")
     parser.add_argument("--extract-text", action="store_true")
     parser.set_defaults(extract_video=False, extract_audio=False, extract_text=False)
+
+    # parts
+    parser.add_argument("--train", action="store_true")
+    parser.add_argument("--val", action="store_true")
+    parser.add_argument("--test", action="store_true")
+    parser.set_defaults(train=False, val=False, test=False)
 
     return parser.parse_args()
 
@@ -114,39 +129,41 @@ def extract_video(
 
         no_face = False
         no_faces_frames = 0
-        frame_paths = sorted(out_path.glob("*.png"))
-        if os.path.exists(out_path):
-            for frame_path in frame_paths:
-                frame = cv2.imread(str(frame_path))
-                if (frame == 0).all():
-                    no_face = True
-                    no_faces_frames += 1
-        else:
-            frames = []
-            while True:
-                ret, frame = video.read()
-                if not ret:
-                    break
-                frames.append(frame)
 
-            # extract face on each frame
-            for i, frame in enumerate(frames):
-                cropped_frame = mtcnn(frame)
-                if isinstance(cropped_frame, NoneType):
-                    cropped_frame = torch.zeros(image_size, image_size, 3)
-                    cropped_frame = cropped_frame.to(torch.uint8)
-                    cropped_frame = cropped_frame.numpy()
-                    no_face = True
-                    no_faces_frames += 1
-                else:
-                    cropped_frame = cropped_frame.permute(1, 2, 0)
-                    cropped_frame = (cropped_frame + 1) / 2 * 255  # [-1, 1] -> [0, 255]
-                    cropped_frame = cropped_frame.clamp(0, 255).to(torch.uint8)
-                    cropped_frame = cropped_frame.numpy()
+        # frame_paths = sorted(out_path.glob("*.png"))
+        # if os.path.exists(out_path):
+        #     for frame_path in frame_paths:
+        #         frame = cv2.imread(str(frame_path))
+        #         if (frame == 0).all():
+        #             no_face = True
+        #             no_faces_frames += 1
+        # else:
 
-                assert cropped_frame.shape == (image_size, image_size, 3)
+        frames = []
+        while True:
+            ret, frame = video.read()
+            if not ret:
+                break
+            frames.append(frame)
 
-                cv2.imwrite(str(out_path / f"{get_name(i)}.png"), cropped_frame)
+        # extract face on each frame
+        for i, frame in enumerate(frames):
+            cropped_frame = mtcnn(frame)
+            if isinstance(cropped_frame, NoneType):
+                cropped_frame = torch.zeros(image_size, image_size, 3)
+                cropped_frame = cropped_frame.to(torch.uint8)
+                cropped_frame = cropped_frame.numpy()
+                no_face = True
+                no_faces_frames += 1
+            else:
+                cropped_frame = cropped_frame.permute(1, 2, 0)
+                cropped_frame = (cropped_frame + 1) / 2 * 255  # [-1, 1] -> [0, 255]
+                cropped_frame = cropped_frame.clamp(0, 255).to(torch.uint8)
+                cropped_frame = cropped_frame.numpy()
+
+            assert cropped_frame.shape == (image_size, image_size, 3)
+
+            cv2.imwrite(str(out_path / f"{get_name(i)}.png"), cropped_frame)
 
         if no_face:
             total_no_face_videos += 1
@@ -194,12 +211,14 @@ def extract_text(
     audio_files = sorted(preprocessed_dir_path.glob("audio/*.wav"))
     assert len(audio_files) == len(
         file_paths
-    ), f"Audio preprocessing has not been done yet, {len(file_paths) = } != {len(audio_files) = }"
+    ), f"Audio extraction has not been done yet, {len(file_paths) = } != {len(audio_files) = }"
 
     audio_files = sorted(preprocessed_dir_path.glob("audio/*.wav"))
     file_paths = audio_files
 
-    for file_path in tqdm(file_paths, desc="Extracting text", total=len(file_paths)):
+    for i, file_path in tqdm(
+        enumerate(file_paths), desc="Extracting text", total=len(file_paths)
+    ):
         out_path = preprocessed_dir_path / "text" / f"{file_path.stem}.txt"
         if os.path.exists(out_path):
             continue
@@ -255,11 +274,15 @@ def main():
     DATA_DIR_PATH = Path(args.data_dir)
     TRAIN_DIR_PATH = DATA_DIR_PATH / args.train_dir
     VAL_DIR_PATH = DATA_DIR_PATH / args.val_dir
+    TEST_DIR_PATH = DATA_DIR_PATH / args.test_dir
+
     PREPROCESSED_TRAIN_DIR_PATH = DATA_DIR_PATH / args.preprocessed_train_dir
     PREPROCESSED_VAL_DIR_PATH = DATA_DIR_PATH / args.preprocessed_val_dir
+    PREPROCESSED_TEST_DIR_PATH = DATA_DIR_PATH / args.preprocessed_test_dir
 
     train_file_paths = sorted(TRAIN_DIR_PATH.glob("*.mp4"))
     val_file_paths = sorted(VAL_DIR_PATH.glob("*.mp4"))
+    test_file_paths = sorted(TEST_DIR_PATH.glob("*.mp4"))
 
     #########
     # VIDEO #
@@ -272,67 +295,104 @@ def main():
             selection_method="largest",
         )
 
-        with mlflow.start_run(run_name="Video Extraction (Train)"):
-            mlflow.log_param("video_train_size", len(train_file_paths))
-            extract_video(
-                file_paths=train_file_paths,
-                mtcnn=mtcnn,
-                image_size=args.image_size,
-                preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
-            )
+        if args.train:
+            with mlflow.start_run(run_name="Video Extraction (Train)"):
+                mlflow.log_param("video_train_size", len(train_file_paths))
+                extract_video(
+                    file_paths=train_file_paths,
+                    mtcnn=mtcnn,
+                    image_size=args.image_size,
+                    preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
+                )
 
-        with mlflow.start_run(run_name="Video Extraction (Val)"):
-            mlflow.log_param("video_val_size", len(val_file_paths))
-            extract_video(
-                file_paths=val_file_paths,
-                mtcnn=mtcnn,
-                image_size=args.image_size,
-                preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
-            )
+        if args.val:
+            with mlflow.start_run(run_name="Video Extraction (Val)"):
+                mlflow.log_param("video_val_size", len(val_file_paths))
+                extract_video(
+                    file_paths=val_file_paths,
+                    mtcnn=mtcnn,
+                    image_size=args.image_size,
+                    preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
+                )
 
-            mtcnn.to("cpu")
-            del mtcnn
+        if args.test:
+            with mlflow.start_run(run_name="Video Extraction (Test)"):
+                mlflow.log_param("video_test_size", len(test_file_paths))
+                extract_video(
+                    file_paths=test_file_paths,
+                    mtcnn=mtcnn,
+                    image_size=args.image_size,
+                    preprocessed_dir_path=PREPROCESSED_TEST_DIR_PATH,
+                )
+
+        mtcnn.to("cpu")
+        del mtcnn
 
     #########
     # AUDIO #
     #########
     if args.extract_audio:
-        with mlflow.start_run(run_name="Audio Extraction"):
-            mlflow.log_param("audio_train_size", len(train_file_paths))
-            mlflow.log_param("audio_val_size", len(val_file_paths))
+        if args.train:
+            with mlflow.start_run(run_name="Audio Extraction (Train)"):
+                mlflow.log_param("audio_train_size", len(train_file_paths))
 
-            extract_audio(
-                file_paths=train_file_paths,
-                preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
-            )
-            extract_audio(
-                file_paths=val_file_paths,
-                preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
-            )
+                extract_audio(
+                    file_paths=train_file_paths,
+                    preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
+                )
+
+        if args.val:
+            with mlflow.start_run(run_name="Audio Extraction (Val)"):
+                mlflow.log_param("audio_val_size", len(val_file_paths))
+
+                extract_audio(
+                    file_paths=val_file_paths,
+                    preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
+                )
+
+        if args.test:
+            with mlflow.start_run(run_name="Audio Extraction (Test)"):
+                mlflow.log_param("audio_test_size", len(test_file_paths))
+
+                extract_audio(
+                    file_paths=test_file_paths,
+                    preprocessed_dir_path=PREPROCESSED_TEST_DIR_PATH,
+                )
 
     ########
     # TEXT #
     ########
     if args.extract_text:
-        with mlflow.start_run(run_name="Text Extraction"):
-            mlflow.log_param("text_train_size", len(train_file_paths))
-            mlflow.log_param("text_val_size", len(val_file_paths))
+        model = whisper.load_model(name="large", device=args.text_model_device)
 
-            model = whisper.load_model(name="large", device=args.text_model_device)
+        if args.train:
+            with mlflow.start_run(run_name="Text Extraction (Train)"):
+                mlflow.log_param("text_train_size", len(train_file_paths))
+                extract_text(
+                    file_paths=train_file_paths,
+                    preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
+                    model=model,
+                )
 
-            extract_text(
-                file_paths=train_file_paths,
-                preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
-                model=model,
-            )
-            extract_text(
-                file_paths=val_file_paths,
-                preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
-                model=model,
-            )
+        if args.val:
+            with mlflow.start_run(run_name="Text Extraction (Val)"):
+                mlflow.log_param("text_val_size", len(val_file_paths))
+                extract_text(
+                    file_paths=val_file_paths,
+                    preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
+                    model=model,
+                )
+        if args.test:
+            with mlflow.start_run(run_name="Text Extraction (Test)"):
+                mlflow.log_param("text_test_size", len(test_file_paths))
+                extract_text(
+                    file_paths=test_file_paths,
+                    preprocessed_dir_path=PREPROCESSED_TEST_DIR_PATH,
+                    model=model,
+                )
 
-            model.to("cpu")
-            del model
+        model.to("cpu")
+        del model
 
 
 if __name__ == "__main__":

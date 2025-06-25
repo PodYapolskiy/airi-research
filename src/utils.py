@@ -1,9 +1,9 @@
-import argparse
 import os
-from pathlib import Path
+import argparse
 import requests
 import mlflow
 import pandas as pd
+from pathlib import Path
 
 MLFLOW_URI = "http://localhost:5000"
 
@@ -22,10 +22,14 @@ def ensure_mlflow() -> None:
 
 def ensure_paths(data_dir_path: str, args: argparse.Namespace) -> None:
     DATA_DIR_PATH = Path(data_dir_path)
+
     TRAIN_DIR_PATH = DATA_DIR_PATH / args.train_dir
     VAL_DIR_PATH = DATA_DIR_PATH / args.val_dir
+    TEST_DIR_PATH = DATA_DIR_PATH / args.test_dir
+
     PREPROCESSED_TRAIN_DIR_PATH = DATA_DIR_PATH / args.preprocessed_train_dir
     PREPROCESSED_VAL_DIR_PATH = DATA_DIR_PATH / args.preprocessed_val_dir
+    PREPROCESSED_TEST_DIR_PATH = DATA_DIR_PATH / args.preprocessed_test_dir
 
     os.makedirs(TRAIN_DIR_PATH, exist_ok=True)
     os.makedirs(PREPROCESSED_TRAIN_DIR_PATH, exist_ok=True)
@@ -38,6 +42,12 @@ def ensure_paths(data_dir_path: str, args: argparse.Namespace) -> None:
     os.makedirs(PREPROCESSED_VAL_DIR_PATH / "video", exist_ok=True)
     os.makedirs(PREPROCESSED_VAL_DIR_PATH / "audio", exist_ok=True)
     os.makedirs(PREPROCESSED_VAL_DIR_PATH / "text", exist_ok=True)
+
+    os.makedirs(TEST_DIR_PATH, exist_ok=True)
+    os.makedirs(PREPROCESSED_TEST_DIR_PATH, exist_ok=True)
+    os.makedirs(PREPROCESSED_TEST_DIR_PATH / "video", exist_ok=True)
+    os.makedirs(PREPROCESSED_TEST_DIR_PATH / "audio", exist_ok=True)
+    os.makedirs(PREPROCESSED_TEST_DIR_PATH / "text", exist_ok=True)
 
 
 def parse_arguments(description: str) -> argparse.Namespace:
