@@ -1,3 +1,4 @@
+import os
 import argparse
 from pathlib import Path
 
@@ -121,6 +122,9 @@ def parse_arguments() -> argparse.Namespace:
         "--val-dir", type=str, default="val_data", help="Path to the val directory"
     )
     parser.add_argument(
+        "--test-dir", type=str, default="test_data", help="Path to the test directory"
+    )
+    parser.add_argument(
         "--preprocessed-train-dir",
         type=str,
         default="preprocessed_train_data",
@@ -131,6 +135,12 @@ def parse_arguments() -> argparse.Namespace:
         type=str,
         default="preprocessed_val_data",
         help="Path to the preprocessed val directory",
+    )
+    parser.add_argument(
+        "--preprocessed-test-dir",
+        type=str,
+        default="preprocessed_test_data",
+        help="Path to the preprocessed test directory",
     )
 
     # meta
@@ -194,6 +204,8 @@ def main():
     mlflow.set_experiment(f"{args.trait}")
 
     ensure_paths(args.data_dir, args)
+    os.makedirs("models", exist_ok=True)
+    MODELS_DIR_PATH = Path("models")
     DATA_DIR_PATH = Path(args.data_dir)
     PREPROCESSED_TRAIN_DIR_PATH = DATA_DIR_PATH / args.preprocessed_train_dir
     PREPROCESSED_VAL_DIR_PATH = DATA_DIR_PATH / args.preprocessed_val_dir
@@ -247,11 +259,12 @@ def main():
             video_dim=args.video_dim,
             audio_dim=args.audio_dim,
             text_dim=args.text_dim,
-            fusion_strategy="early",
+            fusion_strategy=args.fusion,
         ).to(device)
         optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
         criterion = torch.nn.MSELoss()
 
+        best_val_mse = torch.inf
         for epoch in tqdm(
             range(args.epochs), total=args.epochs, unit="epoch", desc=run_name
         ):
@@ -273,6 +286,13 @@ def main():
             mlflow.log_metric("val_loss", val_loss, epoch)
             mlflow.log_metric("val_mse", val_mse, epoch)
             mlflow.log_metric("val_r2", val_r2, epoch)
+
+            if val_mse < best_val_mse:
+                best_val_mse = val_mse
+                torch.save(
+                    model.state_dict(),
+                    MODELS_DIR_PATH / f"[{args.trait}] | {run_name}.pt",
+                )
 
 
 if __name__ == "__main__":

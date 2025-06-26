@@ -1,6 +1,7 @@
 import os
 import warnings
 import pandas as pd
+from enum import Enum
 from pathlib import Path
 from typing import Tuple
 
@@ -57,6 +58,7 @@ class PersonalityDataset(Dataset):
         self.audio_dim = audio_dim
         self.text_dim = text_dim
 
+        self.video_ids: list[str] = []
         self.video_paths: list[str] = []
         self.audio_paths: list[str] = []
         self.text_paths: list[str] = []
@@ -78,6 +80,7 @@ class PersonalityDataset(Dataset):
             audio_path = preprocessed_dir_path / "audio" / f"{row['id']}{postfix}.pt"
             text_path = preprocessed_dir_path / "text" / f"{row['id']}{postfix}.pt"
 
+            self.video_ids.append(f"{row['id']}{postfix}")
             self.video_paths.append(str(video_path))
             self.audio_paths.append(str(audio_path))
             self.text_paths.append(str(text_path))
@@ -102,6 +105,7 @@ class PersonalityDataset(Dataset):
         text_tensor = get_tensor_from_path(self.text_paths[idx], self.text_dim)
 
         return {
+            "video_id": self.video_ids[idx],
             "video_embedding": video_tensor,
             "audio_embedding": audio_tensor,
             "text_embedding": text_tensor,
@@ -229,6 +233,45 @@ class PerformanceDataset(Dataset):
         return interview_answers
 
 
+class Track(Enum):
+    Personality = "personality"
+    Performance = "performance"
+
+
+def get_dataloader(
+    track: Track,
+    preprocessed_dir: Path,
+    csv: str,
+    trait: str,
+    batch_size: int = 32,
+    num_workers: int = 4,
+    shuffle: bool = False,
+):
+    df = pd.read_csv(preprocessed_dir / csv)
+
+    if track == Track.Personality:
+        DatasetClass = PersonalityDataset
+    elif track == Track.Performance:
+        DatasetClass = PerformanceDataset
+    else:
+        raise ValueError(f"Invalid track: {track}")
+
+    dataset = DatasetClass(
+        df=df,
+        preprocessed_dir_path=preprocessed_dir,
+        trait=trait,
+    )
+
+    dataloader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        shuffle=shuffle,
+    )
+
+    return dataloader
+
+
 def get_personality_dataloaders(
     preprocessed_train_dir: Path,
     preprocessed_val_dir: Path,
@@ -251,33 +294,23 @@ def get_personality_dataloaders(
     Returns:
         tuple: (train_dataloader, val_dataloader)
     """
-    df_train = pd.read_csv(preprocessed_train_dir / train_csv)
-    df_val = pd.read_csv(preprocessed_val_dir / val_csv)
-
-    train_dataset = PersonalityDataset(
-        df=df_train,
-        preprocessed_dir_path=preprocessed_train_dir,
-        trait=trait,
-    )
-    val_dataset = PersonalityDataset(
-        df=df_val,
-        preprocessed_dir_path=preprocessed_val_dir,
-        trait=trait,
-    )
-
-    train_dataloader = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        num_workers=num_workers,
+    train_dataloader = get_dataloader(
+        Track.Performance,
+        preprocessed_train_dir,
+        train_csv,
+        trait,
+        batch_size,
+        num_workers,
         shuffle=True,
-        # pin_memory=True,
     )
-    val_dataloader = DataLoader(
-        val_dataset,
-        batch_size=batch_size,
-        num_workers=num_workers,
+    val_dataloader = get_dataloader(
+        Track.Personality,
+        preprocessed_val_dir,
+        val_csv,
+        trait,
+        batch_size,
+        num_workers,
         shuffle=False,
-        # pin_memory=True,
     )
 
     return train_dataloader, val_dataloader

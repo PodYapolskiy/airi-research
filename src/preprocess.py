@@ -1,9 +1,9 @@
 import os
+import cv2
 import argparse
 import warnings
+from tqdm import tqdm
 from pathlib import Path
-import cv2
-from rich import print as rprint
 
 import mlflow
 import numpy as np
@@ -13,11 +13,11 @@ from sklearn.preprocessing import MinMaxScaler
 import torch
 from torch import Tensor
 from einops import rearrange, reduce
-import torch.nn.functional as F
-from jaxtyping import Float
+
+# import torch.nn.functional as F
 import torchaudio
-from tqdm import tqdm
 import transformers
+from jaxtyping import Float
 from emotiefflib.facial_analysis import EmotiEffLibRecognizer, EmotiEffLibRecognizerBase
 
 # from transformers import Wav2Vec2ForXVector, Wav2Vec2Processor
@@ -46,6 +46,10 @@ def parse_arguments() -> argparse.Namespace:
         "--val-dir", type=str, default="val_data", help="Path to the val directory"
     )
     parser.add_argument(
+        "--test-dir", type=str, default="test_data", help="Path to the test directory"
+    )
+
+    parser.add_argument(
         "--preprocessed-train-dir",
         type=str,
         default="preprocessed_train_data",
@@ -56,6 +60,12 @@ def parse_arguments() -> argparse.Namespace:
         type=str,
         default="preprocessed_val_data",
         help="Path to the preprocessed val directory",
+    )
+    parser.add_argument(
+        "--preprocessed-test-dir",
+        type=str,
+        default="preprocessed_test_data",
+        help="Path to the preprocessed test directory",
     )
 
     # meta
@@ -70,6 +80,12 @@ def parse_arguments() -> argparse.Namespace:
         type=str,
         default="val_data.csv",
         help="Name of the validation data CSV file",
+    )
+    parser.add_argument(
+        "--test-csv",
+        type=str,
+        default="test_data.csv",
+        help="Name of the test data CSV file",
     )
 
     # images
@@ -337,18 +353,10 @@ def main():
     # Meta #
     ########
     if args.preprocess_meta:
-
-        if args.train:
-            ...
-
-        if args.val:
-            ...
-        if args.test:
-            ...
-
         with mlflow.start_run(run_name="Meta Preprocessing"):
             df_train = pd.read_csv(DATA_DIR_PATH / args.train_csv)
             df_val = pd.read_csv(DATA_DIR_PATH / args.val_csv)
+            df_test = pd.read_csv(DATA_DIR_PATH / args.test_csv)
 
             features_scaler = MinMaxScaler()
             df_train_preprocessed = preprocess_meta(
@@ -361,12 +369,30 @@ def main():
                 features_scaler=features_scaler,
                 is_train=False,
             )
+            df_test_preprocessed = preprocess_meta(
+                df=df_test,
+                features_scaler=features_scaler,
+                is_train=False,
+            )
 
             # to handle missing columns
             left_columns = list(
                 set(df_train_preprocessed.columns) - set(df_val_preprocessed.columns)
             )
             df_val_preprocessed[left_columns] = 0
+            left_columns = list(
+                set(df_train_preprocessed.columns) - set(df_test_preprocessed.columns)
+            )
+            df_test_preprocessed[left_columns] = 0
+
+            drop_columns = list(
+                set(df_train_preprocessed.columns) ^ set(df_val_preprocessed.columns)
+            )
+            df_val_preprocessed.drop(columns=drop_columns, inplace=True)
+            drop_columns = list(
+                set(df_train_preprocessed.columns) ^ set(df_test_preprocessed.columns)
+            )
+            df_test_preprocessed.drop(columns=drop_columns, inplace=True)
 
             df_train_preprocessed.to_csv(
                 PREPROCESSED_TRAIN_DIR_PATH / args.train_csv, index=False
@@ -374,10 +400,16 @@ def main():
             df_val_preprocessed.to_csv(
                 PREPROCESSED_VAL_DIR_PATH / args.val_csv, index=False
             )
-
-            assert len(df_train_preprocessed.columns) == len(
-                df_train_preprocessed.columns
+            df_test_preprocessed.to_csv(
+                PREPROCESSED_TEST_DIR_PATH / args.test_csv, index=False
             )
+
+            assert (
+                len(df_train_preprocessed.columns)
+                == len(df_val_preprocessed.columns)
+                == len(df_test_preprocessed.columns)
+            ), f"Columns number mismatch {len(df_train_preprocessed.columns)} != {len(df_val_preprocessed.columns)} != {len(df_test_preprocessed.columns)}"
+
             mlflow.log_param("columns_number", len(df_train_preprocessed.columns))
             mlflow.log_param("train_size", len(df_train_preprocessed))
             mlflow.log_param("val_size", len(df_val_preprocessed))
