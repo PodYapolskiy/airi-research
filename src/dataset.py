@@ -166,11 +166,13 @@ class PerformanceDataset(Dataset):
         ]
 
         for _, row in df.iterrows():
+            video_ids = []
             video_paths = []
             audio_paths = []
             text_paths = []
 
             for postfix in postfixes:
+                video_ids.append(f"{row['id']}{postfix}")
                 video_path = (
                     preprocessed_dir_path / "video" / f"{row['id']}{postfix}.pt"
                 )
@@ -191,6 +193,7 @@ class PerformanceDataset(Dataset):
                 or col.startswith("education_")
             ]
 
+            self.video_ids.append(video_ids)
             self.video_paths.append(video_paths)
             self.audio_paths.append(audio_paths)
             self.text_paths.append(text_paths)
@@ -227,6 +230,7 @@ class PerformanceDataset(Dataset):
                 "text_embedding": text_tensor,
             }
 
+        interview_answers["video_ids"] = self.video_ids[idx]
         interview_answers["targets"] = torch.tensor(self.labels[idx])
         interview_answers["features"] = torch.tensor(self.features[idx])
 
@@ -281,19 +285,6 @@ def get_personality_dataloaders(
     batch_size: int = 32,
     num_workers: int = 4,
 ) -> Tuple[DataLoader, DataLoader]:
-    """
-    Create train and validation dataloaders.
-
-    Args:
-        train_df (pd.DataFrame): Training DataFrame
-        val_df (pd.DataFrame): Validation DataFrame
-        data_dir (str): Path to the data directory
-        batch_size (int): Batch size for dataloaders
-        num_workers (int): Number of workers for dataloaders
-
-    Returns:
-        tuple: (train_dataloader, val_dataloader)
-    """
     train_dataloader = get_dataloader(
         Track.Performance,
         preprocessed_train_dir,
@@ -325,46 +316,23 @@ def get_performance_dataloaders(
     batch_size: int = 32,
     num_workers: int = 4,
 ) -> Tuple[DataLoader, DataLoader]:
-    """
-    Create train and validation dataloaders.
-
-    Args:
-        train_df (pd.DataFrame): Training DataFrame
-        val_df (pd.DataFrame): Validation DataFrame
-        data_dir (str): Path to the data directory
-        batch_size (int): Batch size for dataloaders
-        num_workers (int): Number of workers for dataloaders
-
-    Returns:
-        tuple: (train_dataloader, val_dataloader)
-    """
-    df_train = pd.read_csv(preprocessed_train_dir / train_csv)
-    df_val = pd.read_csv(preprocessed_val_dir / val_csv)
-
-    train_dataset = PerformanceDataset(
-        df=df_train,
-        preprocessed_dir_path=preprocessed_train_dir,
-        trait=trait,
-    )
-    val_dataset = PerformanceDataset(
-        df=df_val,
-        preprocessed_dir_path=preprocessed_val_dir,
-        trait=trait,
-    )
-
-    train_dataloader = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        num_workers=num_workers,
+    train_dataloader = get_dataloader(
+        Track.Performance,
+        preprocessed_train_dir,
+        train_csv,
+        trait,
+        batch_size,
+        num_workers,
         shuffle=True,
-        # pin_memory=True,
     )
-    val_dataloader = DataLoader(
-        val_dataset,
-        batch_size=batch_size,
-        num_workers=num_workers,
+    val_dataloader = get_dataloader(
+        Track.Performance,
+        preprocessed_val_dir,
+        val_csv,
+        trait,
+        batch_size,
+        num_workers,
         shuffle=False,
-        # pin_memory=True,
     )
 
     return train_dataloader, val_dataloader

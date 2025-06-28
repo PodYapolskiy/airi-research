@@ -22,6 +22,7 @@ dependencies = [
     "nvidia-cudnn-cu11>=8.7.0.84",
     "openai-whisper>=20240930",
     "opencv-python>=4.11.0.86",
+    "optuna>=4.4.0",
     "pandas>=2.2.3",
     "pillow>=10.2.0",
     "pysoundfile>=0.9.0.post1",

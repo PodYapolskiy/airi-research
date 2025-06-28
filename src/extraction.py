@@ -130,40 +130,39 @@ def extract_video(
         no_face = False
         no_faces_frames = 0
 
-        # frame_paths = sorted(out_path.glob("*.png"))
-        # if os.path.exists(out_path):
-        #     for frame_path in frame_paths:
-        #         frame = cv2.imread(str(frame_path))
-        #         if (frame == 0).all():
-        #             no_face = True
-        #             no_faces_frames += 1
-        # else:
+        frame_paths = sorted(out_path.glob("*.png"))
+        if len(frame_paths) == num_frames:
+            for frame_path in frame_paths:
+                frame = cv2.imread(str(frame_path))
+                if (frame == 0).all():
+                    no_face = True
+                    no_faces_frames += 1
+        else:
+            frames = []
+            while True:
+                ret, frame = video.read()
+                if not ret:
+                    break
+                frames.append(frame)
 
-        frames = []
-        while True:
-            ret, frame = video.read()
-            if not ret:
-                break
-            frames.append(frame)
+            # extract face on each frame
+            for i, frame in enumerate(frames):
+                cropped_frame = mtcnn(frame)
+                if isinstance(cropped_frame, NoneType):
+                    cropped_frame = torch.zeros(image_size, image_size, 3)
+                    cropped_frame = cropped_frame.to(torch.uint8)
+                    cropped_frame = cropped_frame.numpy()
+                    no_face = True
+                    no_faces_frames += 1
+                else:
+                    cropped_frame = cropped_frame.permute(1, 2, 0)
+                    cropped_frame = (cropped_frame + 1) / 2 * 255  # [-1, 1] -> [0, 255]
+                    cropped_frame = cropped_frame.clamp(0, 255).to(torch.uint8)
+                    cropped_frame = cropped_frame.numpy()
 
-        # extract face on each frame
-        for i, frame in enumerate(frames):
-            cropped_frame = mtcnn(frame)
-            if isinstance(cropped_frame, NoneType):
-                cropped_frame = torch.zeros(image_size, image_size, 3)
-                cropped_frame = cropped_frame.to(torch.uint8)
-                cropped_frame = cropped_frame.numpy()
-                no_face = True
-                no_faces_frames += 1
-            else:
-                cropped_frame = cropped_frame.permute(1, 2, 0)
-                cropped_frame = (cropped_frame + 1) / 2 * 255  # [-1, 1] -> [0, 255]
-                cropped_frame = cropped_frame.clamp(0, 255).to(torch.uint8)
-                cropped_frame = cropped_frame.numpy()
+                assert cropped_frame.shape == (image_size, image_size, 3)
 
-            assert cropped_frame.shape == (image_size, image_size, 3)
-
-            cv2.imwrite(str(out_path / f"{get_name(i)}.png"), cropped_frame)
+                cv2.imwrite(str(out_path / f"{get_name(i)}.png"), cropped_frame)
 
         if no_face:
             total_no_face_videos += 1
