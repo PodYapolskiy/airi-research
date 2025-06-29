@@ -4,13 +4,18 @@ import cv2
 import mlflow
 import argparse
 import subprocess
+import numpy as np
 from tqdm import tqdm
 from typing import List
 from pathlib import Path
 
-import torch
 import whisper
-from facenet_pytorch import MTCNN
+from ultralytics import YOLO
+from supervision import Detections
+from huggingface_hub import hf_hub_download
+
+# import torch
+# from facenet_pytorch import MTCNN
 
 from utils import ensure_mlflow, ensure_paths, get_name
 
@@ -100,11 +105,9 @@ def parse_arguments() -> argparse.Namespace:
 def extract_video(
     file_paths: List[Path],
     preprocessed_dir_path: Path,
-    mtcnn: MTCNN,
+    yolo_face: YOLO,
     image_size: int,
 ):
-    total_frames = total_duration = total_no_face_videos = 0
-
     for idx, file_path in tqdm(
         enumerate(file_paths),
         desc="Extracting video",
@@ -115,70 +118,53 @@ def extract_video(
         os.makedirs(out_path, exist_ok=True)
 
         video = cv2.VideoCapture(str(file_path))
-        fps = video.get(cv2.CAP_PROP_FPS)
-        num_frames = video.get(cv2.CAP_PROP_FRAME_COUNT)
-        duration = num_frames / fps
+        fps = int(video.get(cv2.CAP_PROP_FPS))
+        # num_frames = video.get(cv2.CAP_PROP_FRAME_COUNT)
+        # duration = num_frames / fps
 
-        #########
-        # Stats #
-        #########
-        total_frames += num_frames
-        total_duration += duration
-        mlflow.log_metric("frames", num_frames, step=idx)
-        mlflow.log_metric("duration", duration, step=idx)
+        frames = []
+        while True:
+            ret, frame = video.read()
+            if not ret:
+                break
 
-        no_face = False
-        no_faces_frames = 0
-
-        frame_paths = sorted(out_path.glob("*.png"))
-        if len(frame_paths) == num_frames:
-            for frame_path in frame_paths:
-                frame = cv2.imread(str(frame_path))
-                if (frame == 0).all():
-                    no_face = True
-                    no_faces_frames += 1
-        else:
-            frames = []
-            while True:
-                ret, frame = video.read()
-                if not ret:
-                    break
-                frames.append(frame)
-
-            # extract face on each frame
-            for i, frame in enumerate(frames):
-                cropped_frame = mtcnn(frame)
-                if isinstance(cropped_frame, NoneType):
-                    cropped_frame = torch.zeros(image_size, image_size, 3)
-                    cropped_frame = cropped_frame.to(torch.uint8)
-                    cropped_frame = cropped_frame.numpy()
-                    no_face = True
-                    no_faces_frames += 1
-                else:
-                    cropped_frame = cropped_frame.permute(1, 2, 0)
-                    cropped_frame = (cropped_frame + 1) / 2 * 255  # [-1, 1] -> [0, 255]
-                    cropped_frame = cropped_frame.clamp(0, 255).to(torch.uint8)
-                    cropped_frame = cropped_frame.numpy()
-
-                assert cropped_frame.shape == (image_size, image_size, 3)
-
-                cv2.imwrite(str(out_path / f"{get_name(i)}.png"), cropped_frame)
-
-        if no_face:
-            total_no_face_videos += 1
-
-        mlflow.log_metric("no_faces_frames", no_faces_frames, step=idx)
-
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frames.append(frame)
         video.release()
 
-    ###########
-    # Metrics #
-    ###########
-    mlflow.log_metric("total_frames", total_frames)  # total amount of frames
-    mlflow.log_metric("total_videos", len(file_paths))  # total amount of videos
-    mlflow.log_metric("total_no_face_videos", total_no_face_videos)
-    mlflow.log_metric("average_duration", total_duration / len(file_paths))
-    mlflow.log_metric("average_frames", total_frames / len(file_paths))
+        try:
+            # TAKE 1 FRAME PER SECOND
+            frames = [frame for frame in frames[::fps]]
+
+            # forward pass
+            outputs = yolo_face(frames, verbose=False)
+
+            # min(len(frames), len(outputs))
+            for index, (frame, output) in enumerate(zip(frames, outputs)):
+                result = Detections.from_ultralytics(output)
+
+                # crop face if found
+                if result.xyxy.shape[0] > 0:
+                    min_x, min_y, max_x, max_y = map(int, result.xyxy[0])
+                    cropped_frame = frame[min_y:max_y, min_x:max_x, :]
+                else:  # zeros when no face
+                    cropped_frame = np.zeros(
+                        (image_size, image_size, 3), dtype=np.uint8
+                    )
+
+                assert cropped_frame.dtype == np.uint8
+
+                # save as BGR as opencv expects BGR by default and here we put RGB
+                filename = str(out_path / f"{get_name(index)}.png")
+                img = cv2.cvtColor(cropped_frame, cv2.COLOR_RGB2BGR)
+                cv2.imwrite(filename=filename, img=img)
+
+        except Exception as e:
+            print(f"Error processing video {file_path}: {e}")
+            cv2.imwrite(
+                filename=str(out_path / f"{get_name(0)}.png"),
+                img=np.zeros((image_size, image_size, 3), dtype=np.uint8),
+            )
 
 
 def extract_audio(
@@ -287,21 +273,21 @@ def main():
     # VIDEO #
     #########
     if args.extract_video:
-        mtcnn = MTCNN(
-            image_size=args.image_size,
-            min_face_size=args.min_face_size,
-            device=args.video_model_device,
-            selection_method="largest",
+        model_path = hf_hub_download(
+            repo_id="arnabdhar/YOLOv8-Face-Detection", filename="model.pt"
         )
+
+        # load model
+        model = YOLO(model_path)
 
         if args.train:
             with mlflow.start_run(run_name="Video Extraction (Train)"):
                 mlflow.log_param("video_train_size", len(train_file_paths))
                 extract_video(
                     file_paths=train_file_paths,
-                    mtcnn=mtcnn,
-                    image_size=args.image_size,
                     preprocessed_dir_path=PREPROCESSED_TRAIN_DIR_PATH,
+                    yolo_face=model,
+                    image_size=args.image_size,
                 )
 
         if args.val:
@@ -309,9 +295,9 @@ def main():
                 mlflow.log_param("video_val_size", len(val_file_paths))
                 extract_video(
                     file_paths=val_file_paths,
-                    mtcnn=mtcnn,
-                    image_size=args.image_size,
                     preprocessed_dir_path=PREPROCESSED_VAL_DIR_PATH,
+                    yolo_face=model,
+                    image_size=args.image_size,
                 )
 
         if args.test:
@@ -319,13 +305,10 @@ def main():
                 mlflow.log_param("video_test_size", len(test_file_paths))
                 extract_video(
                     file_paths=test_file_paths,
-                    mtcnn=mtcnn,
-                    image_size=args.image_size,
                     preprocessed_dir_path=PREPROCESSED_TEST_DIR_PATH,
+                    yolo_face=model,
+                    image_size=args.image_size,
                 )
-
-        mtcnn.to("cpu")
-        del mtcnn
 
     #########
     # AUDIO #

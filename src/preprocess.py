@@ -14,11 +14,11 @@ import torch
 from torch import Tensor
 from einops import rearrange, reduce
 
-# import torch.nn.functional as F
 import torchaudio
 import transformers
 from jaxtyping import Float
 from emotiefflib.facial_analysis import EmotiEffLibRecognizer, EmotiEffLibRecognizerBase
+# import torch.nn.functional as F
 
 # from transformers import Wav2Vec2ForXVector, Wav2Vec2Processor
 from transformers import HubertModel, AutoProcessor
@@ -185,7 +185,7 @@ def preprocess_video(
             continue
 
         video_features = []
-        batch_size = 100
+        batch_size = 40
         frame_paths = sorted(video_path.glob("*.png"))
         for i in range(0, len(frame_paths), batch_size):
             batch_frame_paths = frame_paths[i : i + batch_size]

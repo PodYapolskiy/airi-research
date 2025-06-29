@@ -29,12 +29,14 @@ dependencies = [
     "rich>=14.0.0",
     "setuptools>=80.9.0",
     "soundfile>=0.13.1",
+    "supervision>=0.24.0",
     "torch>=2.2.2",
     "torchaudio>=2.2.2",
     "torcheval>=0.0.7",
     "torchinfo>=1.8.0",
     "torchvision>=0.17.2",
     "transformers[torch]>=4.52.4",
+    "ultralytics>=8.3.160",
 ]
 
 [[tool.uv.index]]
