@@ -10,7 +10,7 @@ from torcheval.metrics import R2Score, MeanSquaredError
 from tqdm import tqdm
 
 from models import PersonalityNet
-from dataset import get_personality_dataloaders
+from dataset import Track, get_personality_dataloaders, get_concated_dataloader
 from utils import ensure_mlflow, ensure_paths
 
 
@@ -180,12 +180,17 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     # ...
-    parser.add_argument("--meta-dim", type=int, default=13)
+    parser.add_argument("--meta-dim", type=int, default=13 + 8)
     parser.add_argument("--video-dim", type=int, default=1280)
     parser.add_argument("--audio-dim", type=int, default=1280)
     parser.add_argument("--text-dim", type=int, default=768)
 
     parser.add_argument("--fusion", type=str, default="late", choices=["early", "late"])
+
+    parser.add_argument("--train-concated", action="store_true")
+    parser.set_defaults(
+        train_concated=False,
+    )
 
     return parser.parse_args()
 
@@ -229,22 +234,6 @@ def main():
     run_name = " | ".join(run_name)
 
     with mlflow.start_run(run_name=run_name):
-        train_dataloader, val_dataloader = get_personality_dataloaders(
-            preprocessed_train_dir=PREPROCESSED_TRAIN_DIR_PATH,
-            preprocessed_val_dir=PREPROCESSED_VAL_DIR_PATH,
-            train_csv=args.train_csv,
-            val_csv=args.val_csv,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            trait=args.trait,
-        )
-        mlflow.log_params(
-            {
-                "train_len": len(train_dataloader.dataset),
-                "val_len": len(val_dataloader.dataset),
-            }
-        )
-
         device = torch.device(
             args.device
             if torch.cuda.is_available() and args.device.startswith("cuda") == "cuda"
@@ -264,35 +253,78 @@ def main():
         optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
         criterion = torch.nn.MSELoss()
 
-        best_val_mse = torch.inf
-        for epoch in tqdm(
-            range(args.epochs), total=args.epochs, unit="epoch", desc=run_name
-        ):
-            train_loss = train_epoch(
-                model=model,
-                device=device,
-                train_loader=train_dataloader,
-                optimizer=optimizer,
-                criterion=criterion,
+        if not args.train_concated:
+            train_dataloader, val_dataloader = get_personality_dataloaders(
+                preprocessed_train_dir=PREPROCESSED_TRAIN_DIR_PATH,
+                preprocessed_val_dir=PREPROCESSED_VAL_DIR_PATH,
+                train_csv=args.train_csv,
+                val_csv=args.val_csv,
+                batch_size=args.batch_size,
+                num_workers=args.num_workers,
+                trait=args.trait,
             )
-            mlflow.log_metric("train_loss", train_loss, epoch)
-
-            val_loss, val_mse, val_r2 = eval_epoch(
-                model=model,
-                device=device,
-                val_loader=val_dataloader,
-                criterion=criterion,
+            mlflow.log_params(
+                {
+                    "train_len": len(train_dataloader.dataset),
+                    "val_len": len(val_dataloader.dataset),
+                }
             )
-            mlflow.log_metric("val_loss", val_loss, epoch)
-            mlflow.log_metric("val_mse", val_mse, epoch)
-            mlflow.log_metric("val_r2", val_r2, epoch)
 
-            if val_mse < best_val_mse:
-                best_val_mse = val_mse
-                torch.save(
-                    model.state_dict(),
-                    MODELS_DIR_PATH / f"[{args.trait}] | {run_name}.pt",
+            best_val_mse = torch.inf
+            for epoch in tqdm(
+                range(args.epochs), total=args.epochs, unit="epoch", desc=run_name
+            ):
+                train_loss = train_epoch(
+                    model=model,
+                    device=device,
+                    train_loader=train_dataloader,
+                    optimizer=optimizer,
+                    criterion=criterion,
                 )
+                mlflow.log_metric("train_loss", train_loss, epoch)
+
+                val_loss, val_mse, val_r2 = eval_epoch(
+                    model=model,
+                    device=device,
+                    val_loader=val_dataloader,
+                    criterion=criterion,
+                )
+                mlflow.log_metric("val_loss", val_loss, epoch)
+                mlflow.log_metric("val_mse", val_mse, epoch)
+                mlflow.log_metric("val_r2", val_r2, epoch)
+
+                if val_mse < best_val_mse:
+                    best_val_mse = val_mse
+                    torch.save(
+                        model.state_dict(),
+                        MODELS_DIR_PATH / f"[{args.trait}] | {run_name}.pt",
+                    )
+        else:
+            train_dataloader = get_concated_dataloader(
+                track=Track.Personality,
+                trait=args.trait,
+                preprocessed_train_dir=PREPROCESSED_TRAIN_DIR_PATH,
+                preprocessed_val_dir=PREPROCESSED_VAL_DIR_PATH,
+                batch_size=args.batch_size,
+                num_workers=args.num_workers,
+            )
+
+            for epoch in tqdm(
+                range(args.epochs), total=args.epochs, unit="epoch", desc=run_name
+            ):
+                train_loss = train_epoch(
+                    model=model,
+                    device=device,
+                    train_loader=train_dataloader,
+                    optimizer=optimizer,
+                    criterion=criterion,
+                )
+                mlflow.log_metric("train_loss", train_loss, epoch)
+
+            torch.save(
+                model.state_dict(),
+                MODELS_DIR_PATH / f"[{args.trait}] | {run_name}.pt",
+            )
 
 
 if __name__ == "__main__":

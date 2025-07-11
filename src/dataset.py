@@ -7,7 +7,7 @@ from typing import Tuple
 
 import torch
 from torch import Tensor
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, ConcatDataset, DataLoader
 
 
 def get_tensor_from_path(path: str, dim: int) -> Tensor:
@@ -71,6 +71,8 @@ class PersonalityDataset(Dataset):
             if col in ["age", "work_experience"]
             or col.startswith("gender_")
             or col.startswith("education_")
+            or col.startswith("race_")
+            or col.startswith("has_glasses")
         ]
 
         for _, row in df.iterrows():
@@ -276,6 +278,47 @@ def get_dataloader(
     return dataloader
 
 
+def get_concated_dataloader(
+    track: Track,
+    trait: str,
+    preprocessed_train_dir: Path,
+    preprocessed_val_dir: Path,
+    batch_size: int = 32,
+    num_workers: int = 4,
+):
+    if track == Track.Personality:
+        DatasetClass = PersonalityDataset
+    elif track == Track.Performance:
+        DatasetClass = PerformanceDataset
+    else:
+        raise ValueError(f"Invalid track: {track}")
+
+    df_train = pd.read_csv(preprocessed_train_dir / "train_data.csv")
+    df_val = pd.read_csv(preprocessed_val_dir / "val_data.csv")
+
+    train_dataset = DatasetClass(
+        df=df_train,
+        preprocessed_dir_path=preprocessed_train_dir,
+        trait=trait,
+    )
+    val_dataset = DatasetClass(
+        df=df_val,
+        preprocessed_dir_path=preprocessed_val_dir,
+        trait=trait,
+    )
+
+    concated_dataset = ConcatDataset([train_dataset, val_dataset])
+
+    dataloader = DataLoader(
+        concated_dataset,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        shuffle=True,
+    )
+
+    return dataloader
+
+
 def get_personality_dataloaders(
     preprocessed_train_dir: Path,
     preprocessed_val_dir: Path,
@@ -286,7 +329,7 @@ def get_personality_dataloaders(
     num_workers: int = 4,
 ) -> Tuple[DataLoader, DataLoader]:
     train_dataloader = get_dataloader(
-        Track.Performance,
+        Track.Personality,
         preprocessed_train_dir,
         train_csv,
         trait,
