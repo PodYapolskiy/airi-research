@@ -4,6 +4,12 @@
 
 ...
 
+## EDA
+
+...
+
+race classification from https://github.com/dchen236/FairFace/blob/master/predict.py
+
 ## Metrics
 
 #### MSE
